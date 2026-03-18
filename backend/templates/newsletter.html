@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if newsletter_type == 'auto' %}KCC오토 위클리{% elif newsletter_type == 'kcc' %}KCC 회사 소식{% else %}IT 트렌드 위클리{% endif %}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      <!-- 컨테이너 -->
+      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+        <!-- 헤더 -->
+        <tr>
+          <td style="background-color:#2563EB;padding:32px 40px;text-align:center;">
+            <div style="color:#ffffff;font-size:13px;font-weight:500;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Weekly Newsletter</div>
+            <div style="color:#ffffff;font-size:28px;font-weight:700;letter-spacing:-0.5px;">{% if newsletter_type == 'auto' %}🚗 KCC오토 위클리{% elif newsletter_type == 'kcc' %}🏢 KCC 회사 소식{% else %}🚀 IT 트렌드 위클리{% endif %}</div>
+            <div style="color:#93c5fd;font-size:13px;margin-top:8px;">{{ content.generated_at[:10] }}</div>
+          </td>
+        </tr>
+
+        <!-- 인트로 -->
+        <tr>
+          <td style="padding:32px 40px 24px;border-bottom:1px solid #e5e7eb;">
+            <p style="margin:0;color:#374151;font-size:16px;line-height:1.7;">{{ content.intro }}</p>
+          </td>
+        </tr>
+
+        <!-- 기사 목록 -->
+        {% for article in content.articles %}
+        {% set img = images[loop.index0] if images|length > loop.index0 else none %}
+        <tr>
+          <td style="padding:32px 40px;{% if not loop.last %}border-bottom:1px solid #e5e7eb;{% endif %}">
+
+            <!-- 카테고리 태그 -->
+            <div style="margin-bottom:12px;">
+              <span style="display:inline-block;background-color:#eff6ff;color:#2563EB;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px;">{{ article.category }}</span>
+            </div>
+
+            <!-- 이미지 -->
+            {% if img and img.type == 'og' and img.url %}
+            <div style="margin-bottom:16px;">
+              <img src="{{ img.url }}" alt="{{ article.headline }}" width="520" style="width:100%;max-width:520px;height:auto;border-radius:8px;display:block;" />
+            </div>
+            {% elif img and img.type == 'generated' and img.file_path %}
+            <div style="margin-bottom:16px;">
+              <img src="cid:article_{{ loop.index0 }}" alt="{{ article.headline }}" width="520" style="width:100%;max-width:520px;height:auto;border-radius:8px;display:block;" />
+            </div>
+            {% endif %}
+
+            <!-- 헤드라인 -->
+            <h2 style="margin:0 0 12px;color:#111827;font-size:20px;font-weight:700;line-height:1.4;">{{ article.headline }}</h2>
+
+            <!-- 한줄 요약 -->
+            <p style="margin:0 0 12px;color:#6b7280;font-size:13px;font-style:italic;border-left:3px solid #2563EB;padding-left:10px;">{{ article.summary }}</p>
+
+            <!-- 본문 -->
+            <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.75;">{{ article.body }}</p>
+
+            <!-- 원문 보기 버튼 -->
+            <a href="{{ article.original_link }}" target="_blank" style="display:inline-block;background-color:#2563EB;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 20px;border-radius:6px;">원문 보기 →</a>
+
+          </td>
+        </tr>
+        {% endfor %}
+
+        <!-- 푸터 -->
+        <tr>
+          <td style="background-color:#f9fafb;padding:24px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+            <p style="margin:0 0 8px;color:#9ca3af;font-size:12px;">이 뉴스레터는 AI가 자동으로 수집·작성한 IT 트렌드 정보입니다.</p>
+            <p style="margin:0;color:#9ca3af;font-size:12px;">수신을 원치 않으시면 관리자에게 문의해주세요.</p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
