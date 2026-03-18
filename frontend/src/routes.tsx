@@ -1,0 +1,44 @@
+import { createBrowserRouter, Navigate } from "react-router";
+import { AppLayout } from "./components/layout/AppLayout";
+import { HomePage } from "./pages/HomePage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { WorkspacePage } from "./pages/WorkspacePage";
+import { ArticleListPage } from "./pages/ArticleListPage";
+import { HistoryPage } from "./pages/HistoryPage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { LoginPage } from "./pages/auth/LoginPage";
+import { SignupPage } from "./pages/auth/SignupPage";
+import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
+import { useAuthStore } from "./store/useAuthStore";
+
+// Protected Route Wrapper
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+};
+
+export const router = createBrowserRouter([
+  // Public Auth Routes
+  { path: "/login", Component: LoginPage },
+  { path: "/signup", Component: SignupPage },
+  { path: "/forgot-password", Component: ForgotPasswordPage },
+  
+  // Protected App Routes
+  {
+    path: "/",
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, Component: HomePage },
+      { path: "dashboard", Component: DashboardPage },
+      { path: "workspace", Component: WorkspacePage },
+      { path: "articles", Component: ArticleListPage },
+      { path: "history", Component: HistoryPage },
+      { path: "profile", Component: ProfilePage },
+    ],
+  },
+]);

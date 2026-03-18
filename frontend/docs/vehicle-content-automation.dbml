@@ -1,0 +1,58 @@
+Project temporary_vehicle_registration_db {
+  database_type: 'PostgreSQL'
+  Note: 'Temporary registration DB for sales-team and service-team business data plus website article registration. Template selection and content generation are handled in the server logic.'
+}
+
+Table sales_registrations {
+  id uuid [pk]
+  seller_name varchar(100) [not null]
+  buyer_name varchar(120) [not null]
+  vehicle_model varchar(120) [not null]
+  sale_date timestamptz [not null]
+  branch_name varchar(120)
+  note text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table sales_photos {
+  id uuid [pk]
+  sales_registration_id uuid [not null, ref: > sales_registrations.id]
+  file_url text [not null]
+  sort_order int [not null, default: 0]
+  created_at timestamptz [not null]
+}
+
+Table service_registrations {
+  id uuid [pk]
+  technician_name varchar(100) [not null]
+  customer_name varchar(120) [not null]
+  vehicle_model varchar(120) [not null]
+  service_date timestamptz [not null]
+  repair_details text [not null]
+  branch_name varchar(120)
+  note text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table service_photos {
+  id uuid [pk]
+  service_registration_id uuid [not null, ref: > service_registrations.id]
+  file_url text [not null]
+  sort_order int [not null, default: 0]
+  created_at timestamptz [not null]
+}
+
+Table articles {
+  id uuid [pk]
+  title varchar(200) [not null]
+  excerpt text [not null]
+  category varchar(30) [not null]
+  image_url text
+  body_text text
+  author_name varchar(120) [not null]
+  published_at timestamptz [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
