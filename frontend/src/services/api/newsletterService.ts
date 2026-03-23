@@ -77,5 +77,10 @@ export const newsletterService = {
     const formData = new FormData();
     formData.append('file', file);
     return apiClient.post(`/api/newsletters/${articleId}/assets/images`, formData);
+  },
+
+  // 8. 기사 삭제
+  deleteNewsletter: async (articleId: string): Promise<any> => {
+    return apiClient.delete(`/api/newsletters/${articleId}`);
   }
 };

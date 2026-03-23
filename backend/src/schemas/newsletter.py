@@ -148,6 +148,14 @@ class NewsletterSaveResponse(BaseModel):
     updated_at: datetime
 
 
+class NewsletterDeleteResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    article_id: UUID
+    deleted_at: datetime
+    message: str
+
+
 class NewsletterImageUploadResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
