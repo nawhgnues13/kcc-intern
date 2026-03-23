@@ -19,8 +19,8 @@ SYSTEM_INSTRUCTION = f"""당신은 수입차 딜러사 KCC오토그룹의 사내
 
 KCC오토그룹 취급 브랜드: {KCC_AUTO_BRANDS}
 
-다음 기준으로 뉴스레터에 실을 기사 3건을 선별하세요.
-반드시 아래 3개 카테고리에서 각 1건씩 선별해야 합니다:
+다음 기준으로 뉴스레터 후보 기사 6건을 선별하세요.
+반드시 아래 3개 카테고리에서 각 2건씩 선별해야 합니다:
 
 [차량 소식] 취급 브랜드 신차·업데이트
 - KCC오토그룹 취급 브랜드의 신차 출시, 페이스리프트, 사양 변경, 리콜·서비스 캠페인
@@ -64,7 +64,7 @@ def _strip_json_fences(text: str) -> str:
 
 
 async def curate(articles: list[CollectedArticle], max_input: int = 40) -> list[CuratedArticle]:
-    """수집된 자동차 기사 중 뉴스레터에 실을 3건 선별"""
+    """수집된 자동차 기사 중 뉴스레터 후보 6건 선별 (카테고리별 2건)"""
     limited = articles[:max_input]
     slim = [
         {"title": a.title, "link": a.link, "description": a.description[:200], "source": a.source, "published_date": a.published_date}
@@ -74,7 +74,7 @@ async def curate(articles: list[CollectedArticle], max_input: int = 40) -> list[
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=f"다음 기사 목록에서 뉴스레터에 실을 3건을 선별해주세요:\n\n{articles_json}",
+        contents=f"다음 기사 목록에서 뉴스레터 후보 기사 6건을 선별해주세요 (카테고리별 2건):\n\n{articles_json}",
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
             response_mime_type="application/json",

@@ -88,45 +88,6 @@ def _strip_json_fences(text: str) -> str:
     return text.strip()
 
 
-async def rewrite_article(article: NewsletterArticle) -> NewsletterArticle:
-    """기존 기사 본문을 다른 표현·관점으로 재작성 (원문 링크·카테고리 유지)"""
-    article_json = json.dumps({
-        "original_link": article.original_link,
-        "category": article.category,
-        "current_headline": article.headline,
-        "current_body": article.body,
-        "current_summary": article.summary,
-    }, ensure_ascii=False, indent=2)
-
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=f"다음 기사를 다른 표현이나 관점으로 새롭게 작성해주세요. 같은 원문이지만 기존과 다른 angle로 써야 합니다:\n\n{article_json}",
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
-            response_mime_type="application/json",
-        ),
-    )
-
-    raw = _strip_json_fences(response.text)
-    parsed = json.loads(raw)
-
-    # articles 배열로 감싸서 올 수도 있고 단일 객체로 올 수도 있음
-    if "articles" in parsed:
-        data = parsed["articles"][0]
-    else:
-        data = parsed
-
-    return NewsletterArticle(
-        headline=data.get("headline", article.headline),
-        body=data.get("body", article.body),
-        summary=data.get("summary", article.summary),
-        original_link=article.original_link,
-        category=article.category,
-        image_url=article.image_url,
-        image_prompt=data.get("image_prompt", article.image_prompt),
-    )
-
-
 async def write(curated: list[CuratedArticle]) -> NewsletterContent:
     """선별된 기사로 뉴스레터 본문 작성"""
     curated_json = json.dumps(

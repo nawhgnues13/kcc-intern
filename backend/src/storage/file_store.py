@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.models.schemas import (
     CollectedArticle,
+    CuratedArticle,
     ImageInfo,
     NewsletterContent,
     NewsletterStatus,
@@ -36,6 +37,25 @@ def get_categories() -> list[str]:
         if r["category"] not in seen:
             seen.append(r["category"])
     return seen
+
+
+def save_curated(curated_id: str, articles: list[CuratedArticle], newsletter_type: str) -> None:
+    """큐레이션 결과 저장 (Phase 1 완료 후 모달 선택 대기용)"""
+    data = {
+        "id": curated_id,
+        "newsletter_type": newsletter_type,
+        "articles": [a.model_dump() for a in articles],
+        "created_at": datetime.now().isoformat(),
+    }
+    path = DATA_DIR / "curated" / f"{curated_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_curated(curated_id: str) -> dict:
+    """큐레이션 결과 로드"""
+    path = DATA_DIR / "curated" / f"{curated_id}.json"
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def save_collected(articles: list[CollectedArticle]) -> None:
