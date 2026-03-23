@@ -11,6 +11,7 @@ from src.schemas.newsletter import (
     AssistantEditResponse,
     ArticleAIMessageResponse,
     ArticleResponse,
+    NewsletterDeleteResponse,
     NewsletterDetailResponse,
     NewsletterGenerateResponse,
     NewsletterImageUploadResponse,
@@ -22,6 +23,7 @@ from src.schemas.newsletter import (
 from src.services.newsletter_service import (
     assistant_chat,
     assistant_edit,
+    delete_newsletter,
     generate_newsletter,
     get_newsletter_detail,
     get_newsletter_messages,
@@ -220,3 +222,8 @@ async def save_newsletter_route(
         title=payload.title,
         body_content=payload.body_content,
     )
+
+
+@router.delete("/{article_id}", response_model=NewsletterDeleteResponse)
+async def delete_newsletter_route(article_id: UUID, db: Session = Depends(get_db)):
+    return delete_newsletter(db=db, article_id=article_id)

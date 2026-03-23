@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSessionStore } from "../store/useSessionStore";
 import { Plus, X } from "lucide-react";
@@ -13,8 +13,14 @@ export function DashboardPage() {
     prompt, setPrompt, 
     template, setTemplate, 
     headerFooter, setHeaderFooter,
-    attachments, removeAttachment
+    attachments, removeAttachment, setAttachments
   } = useSessionStore();
+  
+  // 대시보드 진입 시 이전 작업 내용(프롬프트, 첨부파일) 초기화
+  useEffect(() => {
+    setPrompt("");
+    setAttachments([]);
+  }, [setPrompt, setAttachments]);
   
   const {
     urlModalOpen,
@@ -52,6 +58,7 @@ export function DashboardPage() {
         setHeaderFooter={setHeaderFooter}
         isGenerating={isGenerating}
         handleGenerate={handleGenerate}
+        onPasteImage={(file) => simulateUpload("image", file.name || "pasted_image.png", file)}
       />
 
       {/* Attachment Sources */}

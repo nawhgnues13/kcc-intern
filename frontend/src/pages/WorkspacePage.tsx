@@ -76,6 +76,20 @@ export function WorkspacePage() {
           }
         }
 
+        // Sync Template and Header/Footer
+        if (articleData.templateStyle) {
+          const parts = articleData.templateStyle.split(' / ');
+          if (parts.length === 2) {
+            useSessionStore.getState().setTemplate(parts[0]);
+            useSessionStore.getState().setHeaderFooter(parts[1]);
+            setTempTemplate(parts[0]);
+            setTempHeaderFooter(parts[1]);
+          } else {
+            useSessionStore.getState().setTemplate(articleData.templateStyle);
+            setTempTemplate(articleData.templateStyle);
+          }
+        }
+
         // Sync Chat Messages
         if (articleData.messages && Array.isArray(articleData.messages)) {
           const mappedMessages = articleData.messages.map((m: any) => ({

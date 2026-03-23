@@ -16,7 +16,8 @@ export interface NewsletterListItem {
   contentFormat: string;
   topic: string | null;
   summary?: string;
-  authorUserId?: string;
+  status?: string; // e.g. 'published', 'deleted'
   authorName?: string;
+  createdAt: string;
   updatedAt: string;
 }
