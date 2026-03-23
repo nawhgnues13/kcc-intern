@@ -42,8 +42,20 @@ export function WorkspacePage() {
     handleImageReplace, handleGenerateNewImage, handleUploadNewImage
   } = useWorkspaceModals();
 
-  const onRegenerateClick = () => {
-    handleRegenerate(setIsGenerating, appendUserMessage, appendAiMessage);
+  const onRegenerateClick = async () => {
+    useSessionStore.getState().setTemplate(tempTemplate);
+    useSessionStore.getState().setHeaderFooter(tempHeaderFooter);
+    
+    // Save to DB immediately if we have an articleId
+    if (articleId) {
+      try {
+        await newsletterService.updateNewsletter(articleId, {
+          templateStyle: `${tempTemplate} / ${tempHeaderFooter}`
+        });
+      } catch (err) {
+        console.error("Failed to save template style:", err);
+      }
+    }
   };
 
   // Handle direct API fetching logic for existing articles via ID

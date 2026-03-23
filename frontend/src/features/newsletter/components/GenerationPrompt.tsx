@@ -66,7 +66,7 @@ export function GenerationPrompt({
             icon={<BoxSelect className="w-4 h-4 text-emerald-500" />}
             label="옵션"
             value={headerFooter} 
-            options={["기본값", "강조형", "창의형", "미니멀"]} 
+            options={["KCC 모던형", "KCC 창의형", "KCC 미니멀형", "KCC 기존형"]}  
             onChange={setHeaderFooter} 
           />
         </div>
