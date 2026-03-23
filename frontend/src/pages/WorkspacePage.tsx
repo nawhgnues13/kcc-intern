@@ -92,10 +92,10 @@ export function WorkspacePage() {
           // Map backend sources to attachment store structure
           const loadedAttachments = articleData.sources.map((s: any) => ({
             id: s.id || Math.random().toString(36).substring(7),
-            name: s.originalName || s.name || s.title || "Uploaded Source",
+            name: s.originalName || s.name || s.title || s.sourceUrl || "Uploaded Source",
             type: s.sourceType === 'pdf' ? 'pdf' : (s.sourceType === 'image' ? 'image' : 'url'),
             status: "completed",
-            url: s.storageUrl || s.url || ""
+            url: s.storageUrl || s.sourceUrl || ""
           }));
           setAttachments(loadedAttachments as any);
         }
@@ -217,9 +217,11 @@ export function WorkspacePage() {
                 <h3 className="text-lg font-semibold text-slate-800">{previewItem.name}</h3>
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-2 text-slate-400 hover:text-[#3721ED] hover:bg-[#3721ED]/10 rounded-xl transition-colors">
-                  <ExternalLink className="w-5 h-5" />
-                </button>
+                {previewItem.url && (
+                  <a href={previewItem.url} target="_blank" rel="noopener noreferrer" className="p-2 text-slate-400 hover:text-[#3721ED] hover:bg-[#3721ED]/10 rounded-xl transition-colors">
+                    <ExternalLink className="w-5 h-5" />
+                  </a>
+                )}
                 <button onClick={() => setPreviewItem(null)} className="p-2 text-slate-400 hover:bg-slate-200/50 rounded-xl transition-colors">
                   <X className="w-5 h-5" />
                 </button>
@@ -238,9 +240,27 @@ export function WorkspacePage() {
                     <p>문서 내용 분석 중...</p>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-4">
-                    <Link2 className="w-16 h-16 opacity-50" />
-                    <p>웹사이트 내용 추출 미리보기</p>
+                  <div className="flex flex-col items-center gap-6 p-8 w-full max-w-lg">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                      <Link2 className="w-8 h-8 text-emerald-500" />
+                    </div>
+                    <div className="text-center space-y-2">
+                      <p className="text-slate-700 font-medium">{previewItem.name}</p>
+                      {previewItem.url && (
+                        <p className="text-xs text-slate-400 break-all">{previewItem.url}</p>
+                      )}
+                    </div>
+                    {previewItem.url && (
+                      <a
+                        href={previewItem.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-medium hover:bg-emerald-600 transition-colors text-sm shadow-sm"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        새 탭에서 열기
+                      </a>
+                    )}
                   </div>
                 )}
               </div>

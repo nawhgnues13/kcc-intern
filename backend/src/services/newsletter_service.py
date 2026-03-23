@@ -400,6 +400,7 @@ async def generate_newsletter(
     template_style: str,
     instruction: str,
     urls: list[str],
+    url_names: list[str],
     files: list[UploadFile],
 ) -> NewsletterGenerateResponse:
     user = _get_user(db, user_id)
@@ -462,7 +463,8 @@ async def generate_newsletter(
                 }
             )
 
-    for index, url in enumerate(urls, start=len(source_payloads)):
+    url_sort_start = len(source_payloads)
+    for i, url in enumerate(urls):
         lower_url = url.lower()
         source_type = "url"
         if lower_url.endswith(".pdf"):
@@ -473,12 +475,12 @@ async def generate_newsletter(
         source_payloads.append(
             {
                 "source_type": source_type,
-                "original_name": None,
+                "original_name": url_names[i] if i < len(url_names) else url,
                 "source_url": url,
                 "storage_url": None,
                 "mime_type": None,
                 "extracted_text": None,
-                "sort_order": index,
+                "sort_order": url_sort_start + i,
             }
         )
 

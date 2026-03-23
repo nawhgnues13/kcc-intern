@@ -122,6 +122,11 @@ async def generate_newsletter_route(
             status_code=422,
             detail="All urls values must be absolute URLs starting with http:// or https://.",
         )
+    url_names = [
+        str(value).strip()
+        for value in form.getlist("url_names")
+        if isinstance(value, str)
+    ]
     files = [
         value
         for value in form.getlist("files")
@@ -136,6 +141,7 @@ async def generate_newsletter_route(
         template_style=template_style,
         instruction=instruction,
         urls=urls,
+        url_names=url_names,
         files=files,
     )
 

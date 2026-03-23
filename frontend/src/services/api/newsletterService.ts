@@ -22,23 +22,26 @@ export const newsletterService = {
   generateNewsletter: async (
     data: GenerateNewsletterRequest,
     files: File[],
-    urls: string[]
+    urls: string[],
+    urlNames: string[] = []
   ): Promise<{ articleId: string }> => {
     const formData = new FormData();
     formData.append('user_id', data.user_id);
     formData.append('instruction', data.instruction);
     formData.append('template_style', data.template_style);
     formData.append('content_format', data.content_format);
-    
+
     // Add multiple files
     files.forEach(file => {
       formData.append('files', file);
     });
-    
-    // Add multiple urls (depending on backend specification, might be multiple text fields or one JSON string)
-    // Here we append each URL as a separate 'urls' field to match FastAPI List[str] with Form.
+
+    // Add multiple urls and their display names
     urls.forEach(url => {
       formData.append('urls', url);
+    });
+    urlNames.forEach(name => {
+      formData.append('url_names', name);
     });
 
     // Content-Type will be automatically set to multipart/form-data by browser/axios

@@ -1,7 +1,12 @@
 import json
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any
+
+from json_repair import repair_json
+
+logger = logging.getLogger(__name__)
 
 import httpx
 from google import genai
@@ -79,7 +84,12 @@ def _strip_json_fences(text: str) -> str:
 
 
 def _parse_json_response(text: str) -> dict[str, Any]:
-    return json.loads(_strip_json_fences(text))
+    cleaned = _strip_json_fences(text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        logger.warning("JSON 파싱 실패, json-repair로 복구 시도")
+        return json.loads(repair_json(cleaned))
 
 
 def _normalize_topic(topic: str | None) -> str | None:
