@@ -10,4 +10,5 @@ export interface Attachment {
   url?: string;
   status: AttachmentStatus;
   progress?: number;
+  file?: File;
 }

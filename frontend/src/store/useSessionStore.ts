@@ -9,6 +9,7 @@ interface SessionState {
   headerFooter: string;
   setHeaderFooter: (headerFooter: string) => void;
   attachments: Attachment[];
+  setAttachments: (attachments: Attachment[]) => void;
   addAttachment: (attachment: Omit<Attachment, 'id'>) => string;
   removeAttachment: (id: string) => void;
   updateAttachment: (id: string, updates: Partial<Attachment>) => void;
@@ -25,6 +26,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setHeaderFooter: (headerFooter) => set({ headerFooter }),
   
   attachments: [],
+  setAttachments: (attachments) => set({ attachments }),
   addAttachment: (attachment) => {
     const id = Math.random().toString(36).substring(7);
     set((state) => ({

@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Loader2, Check, Edit3, Mail, ImagePlus } from "lucide-react";
+import { Loader2, Check, Edit3, Mail, ImagePlus, CheckCircle2 } from "lucide-react";
+import { useNavigate } from "react-router";
 import { NewsletterHeader } from "./NewsletterHeader";
 import { NewsletterFooter } from "./NewsletterFooter";
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import { newsletterService } from "../../../services/api/newsletterService";
 import { Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Undo, Redo, Image as ImageIcon } from "lucide-react";
 
 function renderSimpleMarkdown(line: string, index: number) {
@@ -48,7 +50,7 @@ function formatInline(text: string) {
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-const MenuBar = ({ editor }: { editor: Editor | null }) => {
+const MenuBar = ({ editor, articleId }: { editor: Editor | null; articleId?: string }) => {
   if (!editor) {
     return null;
   }
@@ -126,9 +128,22 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
           type="file" 
           accept="image/*" 
           className="hidden" 
-          onChange={(e) => {
+          onChange={async (e) => {
             const file = e.target.files?.[0];
-            if (file) {
+            if (!file) return;
+            
+            if (articleId) {
+              try {
+                const res = await newsletterService.uploadAssetImage(articleId, file);
+                if (res.imageUrl) {
+                  editor.chain().focus().setImage({ src: res.imageUrl }).run();
+                }
+              } catch (err) {
+                console.error("에디터 이미지 업로드 실패:", err);
+                alert("이미지 업로드에 실패했습니다. 파일 용량이나 네트워크 상태를 확인해주세요.");
+              }
+            } else {
+              // 최초 생성 시 articleId가 없는 경우 fallback으로 Base64 사용
               const reader = new FileReader();
               reader.onload = (event) => {
                 const src = event.target?.result as string;
@@ -178,6 +193,8 @@ interface EditorPanelProps {
   setIsEditingContent: (val: boolean) => void;
   setShowEmailModal: (val: boolean) => void;
   headerFooter: string;
+  articleId?: string; // Add articleId to handle save updates seamlessly
+  isViewMode?: boolean; // Hide action buttons when purely viewing
 }
 
 export function EditorPanel({
@@ -191,8 +208,28 @@ export function EditorPanel({
   isEditingContent,
   setIsEditingContent,
   setShowEmailModal,
-  headerFooter
+  headerFooter,
+  articleId,
+  isViewMode
 }: EditorPanelProps) {
+  const navigate = useNavigate();
+
+  // Helper to safely parse initial content
+  const getInitialContent = (content: string) => {
+    try {
+      if (content.trim().startsWith('{')) {
+        // Sanitize backend 'quote' nodes to Tiptap 'blockquote'
+        let sanitized = content.replace(/"type"\s*:\s*"quote"/g, '"type":"blockquote"');
+        // Sanitize backend 'strong' and 'em' marks to Tiptap 'bold' and 'italic'
+        sanitized = sanitized.replace(/"type"\s*:\s*"strong"/g, '"type":"bold"');
+        sanitized = sanitized.replace(/"type"\s*:\s*"em"/g, '"type":"italic"');
+        return JSON.parse(sanitized);
+      }
+    } catch {
+      // Fallback to string if not valid JSON
+    }
+    return content;
+  };
 
   const editor = useEditor({
     extensions: [
@@ -208,10 +245,10 @@ export function EditorPanel({
         placeholder: '본문 내용을 입력하세요...',
       }),
     ],
-    content: newsletterContent,
+    content: getInitialContent(newsletterContent),
     onUpdate: ({ editor }: { editor: Editor }) => {
-      // We store HTML string directly for Tiptap
-      setNewsletterContent(editor.getHTML());
+      // We store JSON string directly for Tiptap
+      setNewsletterContent(JSON.stringify(editor.getJSON()));
     },
     // Prevent unmounting the editor instance when toggling Edit mode
     editable: isEditingContent,
@@ -230,8 +267,11 @@ export function EditorPanel({
   // Sync content if it changes externally (e.g. AI generation)
   // Only sync if the editor is NOT focused to avoid cursor jumping
   useEffect(() => {
-    if (editor && !editor.isFocused && newsletterContent !== editor.getHTML()) {
-      editor.commands.setContent(newsletterContent);
+    if (editor && !editor.isFocused) {
+      const currentJson = JSON.stringify(editor.getJSON());
+      if (newsletterContent !== currentJson && newsletterContent !== editor.getHTML()) {
+        editor.commands.setContent(getInitialContent(newsletterContent));
+      }
     }
   }, [newsletterContent, editor]);
 
@@ -239,6 +279,26 @@ export function EditorPanel({
   // Usually better to use useEffect, but let's just make sure when toggling from View -> Edit, editor update is aware
   // (In full React implementation, useEffect checking content diff might be needed, but this is ok for now).
   
+  const handleSaveToggle = async () => {
+    if (isEditingContent) {
+      // Transitioning from Edit to View -> Save!
+      if (articleId) {
+        try {
+          const contentToSave = getInitialContent(newsletterContent);
+          await newsletterService.updateNewsletter(articleId, {
+            title: newsletterTitle,
+            bodyContent: contentToSave
+          });
+        } catch (error) {
+          console.error("Failed to save article:", error);
+          alert("저장에 실패했습니다.");
+          return; // Stop toggle if failed?
+        }
+      }
+    }
+    setIsEditingContent(!isEditingContent);
+  };
+
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#F8F9FB] relative">
       <div className="flex-1 overflow-y-auto p-8 relative pb-24 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -255,22 +315,32 @@ export function EditorPanel({
           )}
 
           {/* Action Header */}
-          <div className="flex items-center justify-end gap-2 p-4 bg-white border-b border-slate-100 z-10 sticky top-0">
-            <button 
-              onClick={() => setIsEditingContent(!isEditingContent)}
-              className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-xl transition-all shadow-sm border ${isEditingContent ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}`}
-            >
-              {isEditingContent ? <><Check className="w-4 h-4" /> 저장하기</> : <><Edit3 className="w-4 h-4" /> 내용 수정하기</>}
-            </button>
-            {!isEditingContent && (
+          {!isViewMode && (
+            <div className="flex items-center justify-end gap-2 p-4 bg-white border-b border-slate-100 z-10 sticky top-0">
               <button 
-                onClick={() => setShowEmailModal(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#3721ED] rounded-xl hover:bg-[#2c1ac0] transition-colors shadow-sm shadow-[#3721ED]/20"
+                onClick={handleSaveToggle}
+                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-xl transition-all shadow-sm border ${isEditingContent ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}`}
               >
-                <Mail className="w-4 h-4" /> 이메일 보내기
+                {isEditingContent ? <><Check className="w-4 h-4" /> 저장하기</> : <><Edit3 className="w-4 h-4" /> 내용 수정하기</>}
               </button>
-            )}
-          </div>
+              {!isEditingContent && (
+                <>
+                  <button 
+                    onClick={() => setShowEmailModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#3721ED] rounded-xl hover:bg-[#2c1ac0] transition-colors shadow-sm shadow-[#3721ED]/20"
+                  >
+                    <Mail className="w-4 h-4" /> 이메일 보내기
+                  </button>
+                  <button 
+                    onClick={() => navigate('/articles')}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-xl hover:bg-slate-200 transition-colors shadow-sm"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> 작성 완료
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="flex-1 flex flex-col">
             {/* HEADER COMPONENT */}
@@ -294,7 +364,7 @@ export function EditorPanel({
                       className="bg-white rounded-xl overflow-hidden border border-slate-200 focus-within:border-[#3721ED] focus-within:ring-2 focus-within:ring-[#3721ED]/20 transition-all flex-1 flex flex-col cursor-text"
                       onClick={() => editor?.commands.focus()}
                     >
-                      <MenuBar editor={editor} />
+                      <MenuBar editor={editor} articleId={articleId} />
                       <div className="flex-1 overflow-y-auto w-full p-4 prose prose-slate max-w-none text-slate-800 focus:outline-none 
                         [&_.ProseMirror]:min-h-[300px] [&_.ProseMirror]:outline-none [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-slate-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none"
                       >
@@ -307,27 +377,11 @@ export function EditorPanel({
                 <div className="prose prose-slate max-w-none prose-headings:font-bold prose-h1:text-3xl prose-h1:mb-8 prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4 prose-p:text-slate-600 prose-p:leading-relaxed">
                   <h1 className="text-center">{newsletterTitle}</h1>
                   
-                  {/* Mock Auto-generated Image */}
-                  <div className="relative group rounded-xl overflow-hidden mb-8 shadow-sm border border-slate-100 bg-slate-50">
-                    <img src={heroImage} alt="Newsletter Hero" className="w-full h-64 object-cover" />
-                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                      <button 
-                        onClick={handleImageReplace}
-                        className="flex items-center gap-2 bg-white text-slate-800 px-4 py-2 rounded-full font-medium text-sm hover:scale-105 transition-transform shadow-lg"
-                      >
-                        <ImagePlus className="w-4 h-4" /> 이미지 변경
-                      </button>
-                    </div>
-                  </div>
-
+                  {/* Removed duplicate Hero Image block per user request */}
                   {/* Rendered Text Body */}
                   <div className="markdown-content">
-                    {/* If raw markdown comes from store, we show the parser, if HTML from Tiptap, we just dangerously renderer */}
-                    {newsletterContent.includes('<p>') || newsletterContent.includes('<h1>') ? (
-                       <div dangerouslySetInnerHTML={{ __html: newsletterContent }} />
-                    ) : (
-                       newsletterContent.split('\n').map((line, i) => renderSimpleMarkdown(line, i))
-                    )}
+                    {/* Render the JSON document through Tiptap's HTML generator */}
+                    <div dangerouslySetInnerHTML={{ __html: editor?.getHTML() || "" }} />
                   </div>
                 </div>
               )}

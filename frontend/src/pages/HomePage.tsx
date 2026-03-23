@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { ArrowRight, FileText, LayoutDashboard, Instagram, BookOpen, Sparkles } from "lucide-react";
+import { useAuthStore } from "../store/useAuthStore";
 import { useSessionStore } from "../store/useSessionStore";
-import { getRecommendedArticlesMock } from "../services/mock/articleMock";
-import { Article } from "../types/article";
+import { newsletterService } from "../services/api/newsletterService";
+import { NewsletterListItem } from "../types/article";
 
 const TEMPLATES = [
   { id: "뉴스레터", name: "뉴스레터", icon: <FileText className="w-6 h-6" />, color: "from-blue-500 to-cyan-500", desc: "전문적인 기업용 뉴스레터" },
@@ -13,19 +14,28 @@ const TEMPLATES = [
 ];
 
 export function HomePage() {
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState<NewsletterListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'recommended' | 'my'>('recommended');
   
   const navigate = useNavigate();
   const setTemplate = useSessionStore((state) => state.setTemplate);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     async function fetchArticles() {
       setLoading(true);
       try {
-        const data = await getRecommendedArticlesMock();
-        setArticles(data);
+        const response = await newsletterService.getNewsletters(user?.id || "");
+        let articlesArray: any[] = [];
+        if (Array.isArray(response)) {
+          articlesArray = response;
+        } else if (response && Array.isArray((response as any).items)) {
+          articlesArray = (response as any).items;
+        } else if (response && Array.isArray((response as any).data)) {
+          articlesArray = (response as any).data;
+        }
+        setArticles(articlesArray);
       } catch (error) {
         console.error("Failed to load articles", error);
       } finally {
@@ -33,15 +43,19 @@ export function HomePage() {
       }
     }
     fetchArticles();
-  }, []);
+  }, [user?.id]);
+
+  const displayedArticles = activeTab === 'my' 
+    ? articles.filter(a => a.authorUserId === user?.id)
+    : articles.slice(0, 3); // Recommended shows latest 3 (or all, adjust as needed)
 
   const handleTemplateClick = (templateId: string) => {
     setTemplate(templateId);
     navigate("/dashboard");
   };
 
-  const handleArticleClick = (article: Article) => {
-    navigate("/workspace", { state: { article } });
+  const handleArticleClick = (article: NewsletterListItem) => {
+    navigate(`/workspace?id=${article.id || article.articleId}&mode=view`, { state: { article } });
   };
 
   return (
@@ -80,9 +94,9 @@ export function HomePage() {
 
         {/* Tab Content Area */}
         <div className="mb-20">
-          {activeTab === 'my' ? (
+          {activeTab === 'my' && displayedArticles.length === 0 ? (
             <motion.div
-              key="my"
+              key="my-empty"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-3xl border border-slate-200 border-dashed p-16 flex flex-col items-center justify-center text-center shadow-sm"
@@ -109,8 +123,12 @@ export function HomePage() {
             >
               <div className="flex items-end justify-between mb-8">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-800 mb-2">추천 최신 기사</h2>
-                  <p className="text-slate-500 text-sm">트렌드를 읽고 새로운 인사이트를 얻어보세요.</p>
+                  <h2 className="text-2xl font-bold text-slate-800 mb-2">
+                    {activeTab === 'my' ? '내 기사 목록' : '추천 최신 기사'}
+                  </h2>
+                  <p className="text-slate-500 text-sm">
+                    {activeTab === 'my' ? '지금까지 작성했던 콘텐츠들을 확인해보세요.' : '트렌드를 읽고 새로운 인사이트를 얻어보세요.'}
+                  </p>
                 </div>
                 <Link 
                   to="/articles" 
@@ -127,39 +145,43 @@ export function HomePage() {
                 </div>
               ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {articles.map((article, index) => (
+              {displayedArticles.map((article, index) => (
                 <motion.div
-                  key={article.id}
+                  key={article.id || article.articleId || index}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 + (index * 0.1) }}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden hover:shadow-xl hover:border-slate-300 transition-all cursor-pointer"
+                  className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden hover:shadow-xl hover:border-slate-300 transition-all cursor-pointer flex flex-col"
                   onClick={() => handleArticleClick(article)}
                 >
-                  <div className="h-48 overflow-hidden relative group">
-                    <img 
-                      src={article.imageUrl} 
-                      alt={article.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
+                  <div className="h-48 overflow-hidden relative group bg-slate-100 flex items-center justify-center">
+                    {article.thumbnailImageUrl ? (
+                      <img 
+                        src={article.thumbnailImageUrl} 
+                        alt={article.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="text-slate-400 text-sm font-medium">No Image</div>
+                    )}
                     <div className="absolute top-4 left-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${
-                        article.category === 'IT' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                      }`}>
-                        {article.category}
+                      <span className="px-3 py-1 rounded-full text-xs font-bold shadow-sm bg-blue-100 text-blue-700">
+                        {article.topic || article.contentFormat}
                       </span>
                     </div>
                   </div>
-                  <div className="p-6">
-                    <h3 className="text-lg font-bold text-slate-800 mb-2 line-clamp-2 hover:text-[#3721ED] transition-colors">
+                  <div className="p-6 flex flex-col flex-1">
+                    <h3 className="text-lg font-bold text-slate-800 mb-2 line-clamp-2 hover:text-[#3721ED] transition-colors leading-tight">
                       {article.title}
                     </h3>
-                    <p className="text-slate-500 text-sm line-clamp-2 mb-4">
-                      {article.excerpt}
+                    <p className="text-slate-500 text-sm line-clamp-2 mb-4 flex-1">
+                      {article.summary || `${article.contentFormat} 형식으로 작성된 콘텐츠입니다.`}
                     </p>
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span>{article.author}</span>
-                      <span>{new Date(article.publishedAt).toLocaleDateString()}</span>
+                    <div className="flex items-center justify-between text-xs text-slate-400 border-t border-slate-100 pt-3">
+                      <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded">
+                        <span>{article.authorName || 'AI 어시스턴트'}</span>
+                      </div>
+                      <span>{new Date(article.updatedAt).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </motion.div>

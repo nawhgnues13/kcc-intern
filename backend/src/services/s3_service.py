@@ -8,6 +8,14 @@ from fastapi import HTTPException, UploadFile
 from src.config import settings
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_NEWSLETTER_TYPES = {
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/bmp",
+}
 
 
 def _get_s3_client():
@@ -29,33 +37,57 @@ def is_s3_configured() -> bool:
     )
 
 
-async def upload_profile_image(file: UploadFile, entity_key: str) -> str:
-    if not is_s3_configured():
-        raise HTTPException(status_code=500, detail="S3 설정이 완료되지 않았습니다.")
+def _build_object_url(object_key: str) -> str:
+    endpoint_base = settings.aws_s3_endpoint_url.rstrip("/") if settings.aws_s3_endpoint_url else ""
+    if endpoint_base:
+        return f"{endpoint_base}/{settings.aws_s3_bucket}/{object_key}"
+    return f"https://{settings.aws_s3_bucket}.s3.{settings.aws_region}.amazonaws.com/{object_key}"
 
-    if not file.content_type or file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="jpg, png, webp, gif 이미지 파일만 업로드할 수 있습니다.")
 
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="빈 파일은 업로드할 수 없습니다.")
-
-    extension = Path(file.filename or "upload").suffix.lower() or ".bin"
-    object_key = f"{settings.aws_s3_profile_image_prefix}/{entity_key}/{uuid4()}{extension}"
-
+def _put_object(*, object_key: str, content: bytes, content_type: str) -> str:
     try:
         client = _get_s3_client()
         client.put_object(
             Bucket=settings.aws_s3_bucket,
             Key=object_key,
             Body=content,
-            ContentType=file.content_type,
+            ContentType=content_type,
         )
     except (BotoCoreError, ClientError) as exc:
-        raise HTTPException(status_code=500, detail="프로필 이미지를 S3에 업로드하지 못했습니다.") from exc
+        raise HTTPException(status_code=500, detail="Failed to upload file to S3.") from exc
 
-    endpoint_base = settings.aws_s3_endpoint_url.rstrip("/") if settings.aws_s3_endpoint_url else ""
-    if endpoint_base:
-        return f"{endpoint_base}/{settings.aws_s3_bucket}/{object_key}"
+    return _build_object_url(object_key)
 
-    return f"https://{settings.aws_s3_bucket}.s3.{settings.aws_region}.amazonaws.com/{object_key}"
+
+def upload_newsletter_asset(
+    *,
+    file_name: str,
+    content_type: str,
+    content: bytes,
+    entity_key: str,
+) -> str:
+    if not is_s3_configured():
+        raise HTTPException(status_code=500, detail="S3 configuration is incomplete.")
+    if content_type not in ALLOWED_NEWSLETTER_TYPES:
+        raise HTTPException(status_code=400, detail="Only PDF and image files are supported.")
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    extension = Path(file_name or "upload").suffix.lower() or ".bin"
+    object_key = f"{settings.aws_s3_newsletter_prefix}/{entity_key}/{uuid4()}{extension}"
+    return _put_object(object_key=object_key, content=content, content_type=content_type)
+
+
+async def upload_profile_image(file: UploadFile, entity_key: str) -> str:
+    if not is_s3_configured():
+        raise HTTPException(status_code=500, detail="S3 configuration is incomplete.")
+    if not file.content_type or file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Only jpg, png, webp, and gif images are supported.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    extension = Path(file.filename or "upload").suffix.lower() or ".bin"
+    object_key = f"{settings.aws_s3_profile_image_prefix}/{entity_key}/{uuid4()}{extension}"
+    return _put_object(object_key=object_key, content=content, content_type=file.content_type)

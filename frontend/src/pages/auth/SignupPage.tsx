@@ -16,11 +16,15 @@ export function SignupPage() {
   const navigate = useNavigate();
   const signup = useAuthStore((state) => state.signup);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && role && email) {
-      signup(name, role, email, company, avatar);
-      navigate("/");
+    if (name && role && email && password) {
+      try {
+        await signup(name, role, email, company, avatar, password);
+        navigate("/");
+      } catch (err) {
+        // error is handled inside signup with alert
+      }
     }
   };
 

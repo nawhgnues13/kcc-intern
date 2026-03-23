@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     aws_region: str = "ap-northeast-2"
     aws_s3_bucket: str = ""
     aws_s3_profile_image_prefix: str = "profile-images"
+    aws_s3_newsletter_prefix: str = "newsletter-assets"
     aws_s3_endpoint_url: str = ""
     slack_bot_token: str = ""
     slack_signing_secret: str = ""

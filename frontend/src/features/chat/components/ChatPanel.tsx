@@ -7,6 +7,8 @@ interface ChatPanelProps {
   messages: Message[];
   chatInput: string;
   setChatInput: (val: string) => void;
+  chatMode: "chat" | "edit";
+  setChatMode: (val: "chat" | "edit") => void;
   handleSendMessage: () => void;
   isGenerating: boolean;
   messagesEndRef: RefObject<HTMLDivElement | null>;
@@ -16,6 +18,8 @@ export function ChatPanel({
   messages,
   chatInput,
   setChatInput,
+  chatMode,
+  setChatMode,
   handleSendMessage,
   isGenerating,
   messagesEndRef
@@ -59,12 +63,31 @@ export function ChatPanel({
       </div>
 
       <div className="p-4 bg-white border-t border-slate-100 relative">
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setChatMode("chat")}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              chatMode === "chat" ? "bg-[#3721ED] text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+            }`}
+          >
+            대화하기
+          </button>
+          <button
+            onClick={() => setChatMode("edit")}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
+              chatMode === "edit" ? "bg-amber-500 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+            }`}
+          >
+            본문 수정 요청
+          </button>
+        </div>
+
         <div className="relative flex items-center bg-slate-50 rounded-xl border border-slate-200 focus-within:ring-2 focus-within:ring-[#3721ED]/20 focus-within:border-[#3721ED]/50 transition-all">
           <textarea
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-            placeholder="AI에게 무엇이든 물어보세요..."
+            placeholder={chatMode === "chat" ? "AI에게 무엇이든 물어보세요..." : "수정하고 싶은 내용을 입력하세요..."}
             className="w-full bg-transparent border-none focus:ring-0 resize-none py-3 pl-4 pr-12 text-sm text-slate-700 placeholder-slate-400 max-h-32 min-h-[44px] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
             rows={1}
           />

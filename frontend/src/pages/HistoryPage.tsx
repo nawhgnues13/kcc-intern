@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Clock, FileText, Search, MoreVertical, Calendar, Instagram, LayoutDashboard, CheckCircle2, FilePenLine, Eye, Trash2 } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -13,6 +13,7 @@ const mockHistory = [
 
 export function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const navigate = useNavigate();
 
   const filteredHistory = mockHistory.filter(item => 
     item.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -76,6 +77,7 @@ export function HistoryPage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
+                  onClick={() => navigate(`/workspace?id=${item.id}&mode=view`)}
                   className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group cursor-pointer"
                 >
                   <td className="py-4 px-6">
