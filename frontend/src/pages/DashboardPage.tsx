@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSessionStore } from "../store/useSessionStore";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Search } from "lucide-react";
 import { AttachmentCard } from "../components/shared/AttachmentCard";
 import { SourceUploadModal } from "../features/attachments/components/SourceUploadModal";
+import { SearchModal } from "../features/search/components/SearchModal";
 import { GenerationPrompt } from "../features/newsletter/components/GenerationPrompt";
 import { ModalLayout } from "../components/shared/ModalLayout";
 import { useDashboard } from "../hooks/useDashboard";
@@ -27,12 +28,15 @@ export function DashboardPage() {
     setUrlModalOpen,
     sourceModalOpen,
     setSourceModalOpen,
+    searchModalOpen,
+    setSearchModalOpen,
     urlInput,
     setUrlInput,
     isGenerating,
     handleGenerate,
     simulateUpload,
-    handleAddUrl
+    handleAddUrl,
+    handleAddSearchUrls,
   } = useDashboard();
 
   return (
@@ -72,6 +76,10 @@ export function DashboardPage() {
         <button onClick={() => setSourceModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm text-sm font-medium hover:text-[#3721ED]">
           <Plus className="w-4 h-4" />
           파일 및 링크 추가
+        </button>
+        <button onClick={() => setSearchModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm text-sm font-medium hover:text-[#3721ED]">
+          <Search className="w-4 h-4" />
+          검색으로 찾기
         </button>
       </motion.div>
 
@@ -131,10 +139,20 @@ export function DashboardPage() {
       {/* Unified Attachments Modal */}
       <AnimatePresence>
         {sourceModalOpen && (
-          <SourceUploadModal 
-            onClose={() => setSourceModalOpen(false)} 
+          <SourceUploadModal
+            onClose={() => setSourceModalOpen(false)}
             onUpload={(type, name, file) => simulateUpload(type, name, file)}
             onAddUrl={() => setUrlModalOpen(true)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Search Modal */}
+      <AnimatePresence>
+        {searchModalOpen && (
+          <SearchModal
+            onClose={() => setSearchModalOpen(false)}
+            onAddUrls={handleAddSearchUrls}
           />
         )}
       </AnimatePresence>

@@ -12,6 +12,7 @@ export function useDashboard() {
 
   const [urlModalOpen, setUrlModalOpen] = useState(false);
   const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -24,10 +25,10 @@ export function useDashboard() {
       const files = attachments
         .filter(a => a.type !== 'url' && a.file)
         .map(a => a.file as File);
-      
-      const urls = attachments
-        .filter(a => a.type === 'url' && Boolean(a.url))
-        .map(a => a.url as string);
+
+      const urlAttachments = attachments.filter(a => a.type === 'url' && Boolean(a.url));
+      const urls = urlAttachments.map(a => a.url as string);
+      const urlNames = urlAttachments.map(a => a.name || a.url as string);
 
       // 2. Combine Template and HeaderFooter into one instruction
       const templateStyle = `${template} / ${headerFooter}`;
@@ -49,7 +50,8 @@ export function useDashboard() {
           content_format: 'newsletter',
         },
         files,
-        urls
+        urls,
+        urlNames
       );
 
       setIsGenerating(false);
@@ -84,16 +86,25 @@ export function useDashboard() {
     setUrlModalOpen(false);
   };
 
+  const handleAddSearchUrls = (items: { url: string; title: string }[]) => {
+    items.forEach((item) => {
+      addAttachment({ type: "url", name: item.title || item.url, url: item.url, status: "completed" });
+    });
+  };
+
   return {
     urlModalOpen,
     setUrlModalOpen,
     sourceModalOpen,
     setSourceModalOpen,
+    searchModalOpen,
+    setSearchModalOpen,
     urlInput,
     setUrlInput,
     isGenerating,
     handleGenerate,
     simulateUpload,
-    handleAddUrl
+    handleAddUrl,
+    handleAddSearchUrls,
   };
 }
