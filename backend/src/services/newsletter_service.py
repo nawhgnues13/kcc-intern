@@ -16,6 +16,7 @@ from src.models.user import User
 from src.schemas.newsletter import (
     ArticleAIMessageResponse,
     ArticleSourceResponse,
+    NewsletterDeleteResponse,
     NewsletterDetailResponse,
     NewsletterGenerateResponse,
     NewsletterListItemResponse,
@@ -814,4 +815,55 @@ def save_newsletter(
         title=article.title,
         body_content=article.body_content,
         updated_at=article.updated_at,
+    )
+
+
+def delete_newsletter(*, db: Session, article_id: UUID) -> NewsletterDeleteResponse:
+    article = _get_article(db, article_id)
+    deleted_at = datetime.now()
+
+    article.deleted_at = deleted_at
+
+    images = list(
+        db.scalars(
+            select(ArticleImage).where(
+                ArticleImage.article_id == article_id,
+                ArticleImage.deleted_at.is_(None),
+            )
+        )
+    )
+    for image in images:
+        image.deleted_at = deleted_at
+
+    sources = list(
+        db.scalars(
+            select(ArticleSource).where(
+                ArticleSource.article_id == article_id,
+                ArticleSource.deleted_at.is_(None),
+            )
+        )
+    )
+    for source in sources:
+        source.deleted_at = deleted_at
+
+    linked_tasks = list(
+        db.scalars(
+            select(ContentTask).where(
+                ContentTask.article_id == article_id,
+                ContentTask.deleted_at.is_(None),
+            )
+        )
+    )
+    for task in linked_tasks:
+        task.article_id = None
+        task.status = "pending"
+        task.completed_at = None
+
+    db.commit()
+    db.refresh(article)
+
+    return NewsletterDeleteResponse(
+        article_id=article.id,
+        deleted_at=article.deleted_at,
+        message="Article deleted successfully.",
     )

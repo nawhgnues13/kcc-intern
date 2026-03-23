@@ -42,8 +42,20 @@ export function WorkspacePage() {
     handleImageReplace, handleGenerateNewImage, handleUploadNewImage
   } = useWorkspaceModals();
 
-  const onRegenerateClick = () => {
-    handleRegenerate(setIsGenerating, appendUserMessage, appendAiMessage);
+  const onRegenerateClick = async () => {
+    useSessionStore.getState().setTemplate(tempTemplate);
+    useSessionStore.getState().setHeaderFooter(tempHeaderFooter);
+    
+    // Save to DB immediately if we have an articleId
+    if (articleId) {
+      try {
+        await newsletterService.updateNewsletter(articleId, {
+          templateStyle: `${tempTemplate} / ${tempHeaderFooter}`
+        });
+      } catch (err) {
+        console.error("Failed to save template style:", err);
+      }
+    }
   };
 
   // Handle direct API fetching logic for existing articles via ID
@@ -73,6 +85,20 @@ export function WorkspacePage() {
             }
           } catch (e) {
             setHeroImage("");
+          }
+        }
+
+        // Sync Template and Header/Footer
+        if (articleData.templateStyle) {
+          const parts = articleData.templateStyle.split(' / ');
+          if (parts.length === 2) {
+            useSessionStore.getState().setTemplate(parts[0]);
+            useSessionStore.getState().setHeaderFooter(parts[1]);
+            setTempTemplate(parts[0]);
+            setTempHeaderFooter(parts[1]);
+          } else {
+            useSessionStore.getState().setTemplate(articleData.templateStyle);
+            setTempTemplate(articleData.templateStyle);
           }
         }
 

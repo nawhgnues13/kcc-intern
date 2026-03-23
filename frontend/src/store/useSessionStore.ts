@@ -22,7 +22,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   template: 'Company Newsletter',
   setTemplate: (template) => set({ template }),
   
-  headerFooter: 'Corporate Default',
+  headerFooter: 'KCC 모던형',
   setHeaderFooter: (headerFooter) => set({ headerFooter }),
   
   attachments: [],

@@ -95,21 +95,21 @@ export function SettingsPanel({
                 onChange={e => setTempHeaderFooter(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] outline-none"
               >
-                <option value="기본값">기본값</option>
-                <option value="강조형">강조형</option>
-                <option value="창의형">창의형</option>
-                <option value="미니멀">미니멀</option>
+                <option value="KCC 모던형">KCC 모던형</option>
+                <option value="KCC 창의형">KCC 창의형</option>
+                <option value="KCC 미니멀형">KCC 미니멀형</option>
+                <option value="KCC 기존형">KCC 기존형</option>
               </select>
             </div>
 
             {(tempTemplate !== template || tempHeaderFooter !== headerFooter) && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pt-2 border-t border-slate-100">
-                <p className="text-xs text-amber-600 mb-3 bg-amber-50 p-2 rounded-lg border border-amber-100">설정이 변경되었습니다. 새로 생성하기를 누르면 테마가 변경됩니다.</p>
+                <p className="text-xs text-[#3721ED] mb-3 bg-[#3721ED]/5 p-2 rounded-lg border border-[#3721ED]/20">설정이 변경되었습니다. 적용하기를 누르면 디자인(헤더/푸터) 테마만 즉시 변경됩니다.</p>
                 <button 
-                  onClick={handleRegenerate}
+                  onClick={handleRegenerate} // We'll pass an apply function instead of regenerate here
                   className="w-full flex items-center justify-center gap-2 bg-[#3721ED] text-white py-2.5 rounded-xl font-medium shadow-sm hover:bg-[#2c1ac0] transition-colors text-sm"
                 >
-                  <RefreshCw className="w-4 h-4" /> 새로 생성하기
+                  <RefreshCw className="w-4 h-4" /> 디자인 적용하기
                 </button>
               </motion.div>
             )}

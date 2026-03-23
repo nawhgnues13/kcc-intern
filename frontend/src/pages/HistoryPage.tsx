@@ -1,23 +1,80 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router";
-import { Clock, FileText, Search, MoreVertical, Calendar, Instagram, LayoutDashboard, CheckCircle2, FilePenLine, Eye, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
+import { Clock, FileText, Search, Calendar, Instagram, LayoutDashboard, CheckCircle2, FilePenLine, Eye, Trash2, XCircle, Image as ImageIcon } from "lucide-react";
 import { motion } from "motion/react";
-
-const mockHistory = [
-  { id: 1, title: "제네시스 GV80 페이스리프트 출시 안내", type: "뉴스레터", date: "2026.03.16", status: "completed" },
-  { id: 2, title: "IT 트렌드 분석 보고서 요약본", type: "블로그", date: "2026.03.15", status: "completed" },
-  { id: 3, title: "봄맞이 차량 무상점검 프로모션 홍보", type: "인스타그램", date: "2026.03.12", status: "draft" },
-  { id: 4, title: "신입사원 온보딩 매뉴얼 초안", type: "블로그", date: "2026.03.10", status: "completed" },
-  { id: 5, title: "KCC오토 전기차 충전소 위치 안내", type: "뉴스레터", date: "2026.02.28", status: "completed" },
-];
+import { newsletterService } from "../services/api/newsletterService";
+import { useAuthStore } from "../store/useAuthStore";
+import { NewsletterListItem } from "../types/article";
 
 export function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [articles, setArticles] = useState<NewsletterListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const navigate = useNavigate();
+  const { user } = useAuthStore();
 
-  const filteredHistory = mockHistory.filter(item => 
-    item.title.toLowerCase().includes(searchTerm.toLowerCase())
+  useEffect(() => {
+    async function fetchHistory() {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+      try {
+        const response: any = await newsletterService.getNewsletters(user.id);
+        let data: NewsletterListItem[] = [];
+        if (Array.isArray(response)) {
+          data = response as NewsletterListItem[];
+        } else if (response && Array.isArray(response.items)) {
+          data = response.items as NewsletterListItem[];
+        } else if (response && Array.isArray(response.data)) {
+          data = response.data as NewsletterListItem[];
+        }
+        
+        const sortedData = data.sort((a, b) => new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime());
+        setArticles(sortedData);
+      } catch (err) {
+        console.error("Failed to fetch history:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchHistory();
+  }, [user?.id]);
+
+  const filteredHistory = articles.filter(item => 
+    item.title?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getTypeKorean = (format: string) => {
+    switch(format?.toLowerCase()) {
+      case 'newsletter': return '뉴스레터';
+      case 'blog': return '블로그';
+      case 'instagram': return '인스타그램';
+      default: return '문서';
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const handleDelete = async (e: React.MouseEvent, articleId: string) => {
+    e.stopPropagation();
+    if (!window.confirm("이 기사를 삭제하시겠습니까?\n삭제된 기사는 복구할 수 없습니다.")) return;
+    
+    try {
+      await newsletterService.deleteNewsletter(articleId);
+      setArticles(prev => prev.map(item => 
+        item.articleId === articleId ? { ...item, status: 'deleted' } : item
+      ));
+    } catch (err) {
+      console.error("Failed to delete article", err);
+      alert("삭제에 실패했습니다.");
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto w-full bg-[#F8F9FB]">
@@ -46,16 +103,16 @@ export function HistoryPage() {
         {/* Status Legend */}
         <div className="flex items-center gap-6 mb-4 px-2">
           <div className="flex items-center gap-2">
-            <div className="p-1 bg-emerald-50 text-emerald-600 rounded-md">
+            <div className="p-1 bg-indigo-50 text-indigo-600 rounded-md">
               <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-semibold text-slate-500">저장됨</span>
+            <span className="text-xs font-semibold text-slate-500">게시됨</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="p-1 bg-amber-50 text-amber-600 rounded-md">
-              <FilePenLine className="w-3.5 h-3.5" />
+            <div className="p-1 bg-red-50 text-red-600 rounded-md">
+              <XCircle className="w-3.5 h-3.5" />
             </div>
-            <span className="text-xs font-semibold text-slate-500">임시저장</span>
+            <span className="text-xs font-semibold text-slate-500">삭제됨</span>
           </div>
         </div>
 
@@ -71,66 +128,103 @@ export function HistoryPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredHistory.map((item, index) => (
-                <motion.tr 
-                  key={item.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  onClick={() => navigate(`/workspace?id=${item.id}&mode=view`)}
-                  className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                >
-                  <td className="py-4 px-6">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white bg-gradient-to-br shadow-sm ${
-                        item.type === '뉴스레터' ? 'from-blue-500 to-cyan-500' :
-                        item.type === '인스타그램' ? 'from-pink-500 to-orange-400' : 
-                        'from-emerald-500 to-teal-400'
-                      }`}>
-                        {item.type === '뉴스레터' && <FileText className="w-5 h-5" />}
-                        {item.type === '인스타그램' && <Instagram className="w-5 h-5" />}
-                        {item.type === '블로그' && <LayoutDashboard className="w-5 h-5" />}
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="py-20 text-center text-slate-500">
+                    <p className="font-medium">기록을 불러오는 중입니다...</p>
+                  </td>
+                </tr>
+              ) : filteredHistory.map((item, index) => {
+                const typeKorean = getTypeKorean(item.contentFormat);
+                
+                return (
+                  <motion.tr 
+                    key={item.articleId}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    onClick={() => { if (item.status !== 'deleted') navigate(`/workspace?id=${item.articleId}&mode=view`) }}
+                    className={`border-b border-slate-100 transition-colors group ${
+                      item.status === 'deleted' 
+                        ? 'opacity-60 bg-slate-50' 
+                        : 'hover:bg-slate-50/50 cursor-pointer'
+                    }`}
+                  >
+                    <td className="py-4 px-6 w-7/12">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 shrink-0 rounded-xl flex items-center justify-center bg-slate-100 shadow-sm overflow-hidden border border-slate-200/60">
+                          {item.thumbnailImageUrl ? (
+                            <img src={item.thumbnailImageUrl} alt="thumbnail" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-slate-300">
+                              <ImageIcon className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-800 group-hover:text-[#3721ED] transition-colors line-clamp-1">{item.title || "제목 없음"}</span>
+                          {item.summary && <span className="text-xs text-slate-500 line-clamp-1 mt-0.5">{item.summary}</span>}
+                        </div>
                       </div>
-                      <span className="font-bold text-slate-800 group-hover:text-[#3721ED] transition-colors line-clamp-1">{item.title}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span className="text-sm font-semibold text-slate-600">{item.type}</span>
-                  </td>
-                  <td className="py-4 px-6 text-center">
-                    <div className="flex flex-col items-center justify-center gap-0.5 text-slate-500">
-                      <div className="flex items-center gap-1.5 text-sm font-medium">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {item.date}
+                    </td>
+                    <td className="py-4 px-6 w-2/12">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white bg-gradient-to-br shadow-sm ${
+                            typeKorean === '뉴스레터' ? 'from-blue-500 to-cyan-500' :
+                            typeKorean === '인스타그램' ? 'from-pink-500 to-orange-400' : 
+                            'from-emerald-500 to-teal-400'
+                          }`}>
+                            {typeKorean === '뉴스레터' && <FileText className="w-4 h-4" />}
+                            {typeKorean === '인스타그램' && <Instagram className="w-4 h-4" />}
+                            {(typeKorean === '블로그' || typeKorean === '문서') && <LayoutDashboard className="w-4 h-4" />}
+                        </div>
+                        <span className="text-sm font-semibold text-slate-600">{typeKorean}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 uppercase tracking-tighter">작성일</span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-center">
-                    <div className={`inline-flex p-1.5 rounded-lg ${
-                      item.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                    }`}>
-                      {item.status === 'completed' ? <CheckCircle2 className="w-4.5 h-4.5" /> : <FilePenLine className="w-4.5 h-4.5" />}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-center">
-                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        title="보기"
-                        className="p-2 text-slate-400 hover:text-[#3721ED] hover:bg-blue-50 rounded-lg transition-all"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button 
-                        title="삭제"
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
+                    </td>
+                    <td className="py-4 px-6 text-center w-2/12">
+                      <div className="flex flex-col items-center justify-center gap-0.5 text-slate-500">
+                        <div className="flex items-center gap-1.5 text-sm font-medium">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {formatDate(item.createdAt || item.updatedAt)}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-center w-1/12">
+                      {item.status === 'deleted' ? (
+                        <div className="inline-flex items-center p-1.5 rounded-lg bg-red-50 text-red-600">
+                          <XCircle className="w-4 h-4" />
+                          <span className="text-xs font-bold whitespace-nowrap ml-1">삭제됨</span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span className="text-xs font-bold whitespace-nowrap ml-1">게시됨</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-center w-1/12">
+                      <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          title="상세 보기"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/workspace?id=${item.articleId}&mode=view`); }}
+                          className="p-2 text-slate-400 hover:text-[#3721ED] hover:bg-blue-50 rounded-lg transition-all"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {item.status !== 'deleted' && (
+                          <button 
+                            title="삭제"
+                            onClick={(e) => handleDelete(e, item.articleId)}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </motion.tr>
+                );
+              })}
               
               {filteredHistory.length === 0 && (
                 <tr>

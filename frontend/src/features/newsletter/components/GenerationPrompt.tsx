@@ -11,6 +11,7 @@ interface GenerationPromptProps {
   setHeaderFooter: (val: string) => void;
   isGenerating: boolean;
   handleGenerate: () => void;
+  onPasteImage?: (file: File) => void;
 }
 
 export function GenerationPrompt({
@@ -21,7 +22,8 @@ export function GenerationPrompt({
   headerFooter,
   setHeaderFooter,
   isGenerating,
-  handleGenerate
+  handleGenerate,
+  onPasteImage
 }: GenerationPromptProps) {
   return (
     <motion.div 
@@ -34,6 +36,18 @@ export function GenerationPrompt({
       <textarea
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
+        onPaste={(e) => {
+          if (onPasteImage && e.clipboardData && e.clipboardData.files.length > 0) {
+            const files = Array.from(e.clipboardData.files);
+            const imageFiles = files.filter(f => f.type.startsWith('image/'));
+            if (imageFiles.length > 0) {
+              // Only prevent default if we actually handled an image paste
+              // This allows normal text pasting to continue working seamlessly
+              e.preventDefault();
+              imageFiles.forEach(file => onPasteImage(file));
+            }
+          }
+        }}
         placeholder="예) 첨부된 기사들을 요약해서 IT 트렌드 뉴스레터로 만들어줘..."
         className="w-full bg-transparent min-h-[140px] p-6 text-xl placeholder-slate-300 border-none resize-none focus:outline-none focus:ring-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] text-slate-800"
       />
@@ -52,7 +66,7 @@ export function GenerationPrompt({
             icon={<BoxSelect className="w-4 h-4 text-emerald-500" />}
             label="옵션"
             value={headerFooter} 
-            options={["기본값", "강조형", "창의형", "미니멀"]} 
+            options={["KCC 모던형", "KCC 창의형", "KCC 미니멀형", "KCC 기존형"]}  
             onChange={setHeaderFooter} 
           />
         </div>
