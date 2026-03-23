@@ -11,6 +11,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 
 from src.api.routes.auth import router as auth_router
+from src.api.routes.content_tasks import router as content_tasks_router
+from src.api.routes.crm import router as crm_router
+from src.api.routes.employees import router as employees_router
 from src.api.routes.search import router as search_router
 from src.api.routes.newsletters import router as newsletters_router
 from src.api.routes.users import router as users_router
@@ -89,6 +92,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AI Newsletter MVP", lifespan=lifespan)
 app.include_router(auth_router)
+app.include_router(employees_router)
+app.include_router(crm_router)
+app.include_router(content_tasks_router)
 app.include_router(search_router)
 app.include_router(newsletters_router)
 app.include_router(users_router)

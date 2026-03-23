@@ -11,6 +11,7 @@ from src.models.article import Article
 from src.models.article_ai_message import ArticleAIMessage
 from src.models.article_image import ArticleImage
 from src.models.article_source import ArticleSource
+from src.models.content_task import ContentTask
 from src.models.user import User
 from src.schemas.newsletter import (
     ArticleAIMessageResponse,
@@ -29,6 +30,7 @@ from src.services.gemini_newsletter_service import (
     generate_newsletter_content,
     upload_inline_file,
 )
+from src.services.content_task_service import get_generation_context_for_task
 from src.services.image_service import generate_image
 from src.services.s3_service import upload_newsletter_asset
 
@@ -47,6 +49,18 @@ def _get_article(db: Session, article_id: UUID) -> Article:
     if not article:
         raise HTTPException(status_code=404, detail="Article not found.")
     return article
+
+
+def _get_content_task(db: Session, task_id: UUID) -> ContentTask:
+    task = db.scalar(
+        select(ContentTask).where(
+            ContentTask.id == task_id,
+            ContentTask.deleted_at.is_(None),
+        )
+    )
+    if not task:
+        raise HTTPException(status_code=404, detail="Content task not found.")
+    return task
 
 
 def _list_sources(db: Session, article_id: UUID) -> list[ArticleSource]:
@@ -204,7 +218,7 @@ def _truncate_summary(text: str, limit: int = 110) -> str:
     normalized = " ".join(text.split()).strip()
     if len(normalized) <= limit:
         return normalized
-    return normalized[: limit - 1].rstrip() + "…"
+    return normalized[: limit - 3].rstrip() + "..."
 
 
 def _extract_summary(body_content: dict[str, Any]) -> str | None:
@@ -381,6 +395,7 @@ async def generate_newsletter(
     *,
     db: Session,
     user_id: UUID,
+    content_task_id: UUID | None,
     content_format: str,
     template_style: str,
     instruction: str,
@@ -391,8 +406,63 @@ async def generate_newsletter(
     entity_key = str(uuid4())
     source_payloads: list[dict[str, Any]] = []
     gemini_files: list[Any] = []
+    effective_instruction = instruction
+    effective_urls = list(urls)
+    effective_content_format = content_format
+    effective_template_style = template_style
+    fallback_topic: str | None = None
+    task: ContentTask | None = None
 
-    for index, url in enumerate(urls):
+    if content_task_id is not None:
+        task = _get_content_task(db, content_task_id)
+        if task.article_id is not None:
+            existing_article = db.scalar(
+                select(Article).where(
+                    Article.id == task.article_id,
+                    Article.deleted_at.is_(None),
+                )
+            )
+            if existing_article is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail="This content task already has a linked article.",
+                )
+
+        task_context = get_generation_context_for_task(db=db, task_id=content_task_id)
+        effective_content_format = task.content_format
+        effective_template_style = task.template_style or template_style
+        effective_instruction = (
+            f"{task_context['instruction_prefix']}\n\n"
+            f"Additional user instruction:\n{instruction}"
+        )
+        effective_urls = [*task_context["image_urls"], *effective_urls]
+        fallback_topic = task_context["topic"]
+
+        source_payloads.append(
+            {
+                "source_type": "url",
+                "original_name": "content-task-source",
+                "source_url": None,
+                "storage_url": None,
+                "mime_type": "text/plain",
+                "extracted_text": task_context["source_bundle"]["sourceText"],
+                "sort_order": 0,
+            }
+        )
+        for index, image_url in enumerate(task_context["image_urls"], start=1):
+            source_payloads.append(
+                {
+                    "source_type": "image",
+                    "original_name": f"task-image-{index}",
+                    "source_url": image_url,
+                    "storage_url": image_url,
+                    "mime_type": "image/*",
+                    "extracted_text": None,
+                    "sort_order": index,
+                }
+            )
+
+    for index, url in enumerate(urls, start=len(source_payloads)):
         lower_url = url.lower()
         source_type = "url"
         if lower_url.endswith(".pdf"):
@@ -438,17 +508,17 @@ async def generate_newsletter(
         )
 
     generated = generate_newsletter_content(
-        instruction=instruction,
-        content_format=content_format,
-        template_style=template_style,
-        urls=urls,
+        instruction=effective_instruction,
+        content_format=effective_content_format,
+        template_style=effective_template_style,
+        urls=effective_urls,
         uploaded_files=gemini_files,
     )
     image_warnings = await _materialize_generated_images(
         body_content=generated["bodyContent"],
         article_title=generated.get("title"),
-        content_format=content_format,
-        template_style=template_style,
+        content_format=effective_content_format,
+        template_style=effective_template_style,
         entity_key=entity_key,
     )
 
@@ -458,9 +528,9 @@ async def generate_newsletter(
     )
 
     article = Article(
-        content_format=content_format,
-        topic=generated.get("topic"),
-        template_style=template_style,
+        content_format=effective_content_format,
+        topic=generated.get("topic") or fallback_topic,
+        template_style=effective_template_style,
         title=generated.get("title"),
         body_content=generated["bodyContent"],
         generation_meta={
@@ -468,6 +538,7 @@ async def generate_newsletter(
             "instruction": instruction,
             "url_count": len(urls),
             "file_count": len(files),
+            "content_task_id": str(content_task_id) if content_task_id else None,
             "warnings": final_warnings,
         },
         author_user_id=user.id,
@@ -498,6 +569,12 @@ async def generate_newsletter(
     )
     db.add(user_message)
     db.add(assistant_message)
+
+    if task is not None:
+        task.article_id = article.id
+        task.status = "in_progress"
+        if task.assigned_user_id is None and user.employee_id == task.assigned_employee_id:
+            task.assigned_user_id = user.id
 
     _sync_article_images(db, article.id, article.body_content)
     db.commit()

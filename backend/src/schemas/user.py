@@ -18,6 +18,7 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
+    login_id: Optional[str] = Field(default=None, min_length=4, max_length=100)
     name: Optional[str] = Field(default=None, min_length=1, max_length=120)
     company_name: Optional[str] = Field(default=None, max_length=120)
     job_title: Optional[str] = Field(default=None, max_length=120)
@@ -28,6 +29,7 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    employee_id: Optional[UUID]
     login_id: str
     name: str
     role: str

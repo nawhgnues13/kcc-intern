@@ -12,6 +12,7 @@ from src.schemas.auth import (
     SignupResponse,
 )
 from src.schemas.user import UserResponse
+from src.services.employee_link_service import sync_user_employee_link
 from src.services.password_service import hash_password, verify_password
 from src.services.s3_service import upload_profile_image
 
@@ -37,7 +38,7 @@ async def signup(
         select(User).where(User.login_id == login_id, User.deleted_at.is_(None))
     )
     if existing_user:
-        raise HTTPException(status_code=409, detail="이미 사용 중인 로그인 ID입니다.")
+        raise HTTPException(status_code=409, detail="Login ID is already in use.")
 
     profile_image_url = None
     if profile_image is not None:
@@ -52,19 +53,27 @@ async def signup(
         profile_image_url=profile_image_url,
     )
     db.add(user)
+    db.flush()
+    sync_user_employee_link(db, user)
     db.commit()
     db.refresh(user)
 
-    return SignupResponse(message="회원가입이 완료되었습니다.", user=UserResponse.model_validate(user))
+    return SignupResponse(
+        message="Signup completed successfully.",
+        user=UserResponse.model_validate(user),
+    )
 
 
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.login_id == payload.login_id, User.deleted_at.is_(None)))
     if not user or not verify_password(payload.password, user.password):
-        raise HTTPException(status_code=401, detail="로그인 ID 또는 비밀번호가 올바르지 않습니다.")
+        raise HTTPException(status_code=401, detail="Invalid login ID or password.")
 
-    return LoginResponse(message="로그인에 성공했습니다.", user=UserResponse.model_validate(user))
+    return LoginResponse(
+        message="Login successful.",
+        user=UserResponse.model_validate(user),
+    )
 
 
 @router.post("/password/reset", response_model=PasswordResetResponse)
@@ -77,9 +86,9 @@ async def reset_password(payload: PasswordResetRequest, db: Session = Depends(ge
         )
     )
     if not user:
-        raise HTTPException(status_code=404, detail="일치하는 사용자 정보를 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="Matching user information was not found.")
 
     user.password = hash_password(payload.new_password)
     db.commit()
 
-    return PasswordResetResponse(message="비밀번호가 재설정되었습니다.")
+    return PasswordResetResponse(message="Password has been reset.")

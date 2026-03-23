@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.db import get_db
 from src.models.user import User
 from src.schemas.user import UserResponse
+from src.services.employee_link_service import sync_user_employee_link
 from src.services.s3_service import upload_profile_image
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -21,7 +22,7 @@ async def users_ping():
 async def get_user(user_id: UUID, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.id == user_id, User.deleted_at.is_(None)))
     if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="User not found.")
 
     return UserResponse.model_validate(user)
 
@@ -29,6 +30,7 @@ async def get_user(user_id: UUID, db: Session = Depends(get_db)):
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: UUID,
+    login_id: str | None = Form(default=None, min_length=4, max_length=100),
     name: str | None = Form(default=None, min_length=1, max_length=120),
     company_name: str | None = Form(default=None, max_length=120),
     job_title: str | None = Form(default=None, max_length=120),
@@ -37,7 +39,19 @@ async def update_user(
 ):
     user = db.scalar(select(User).where(User.id == user_id, User.deleted_at.is_(None)))
     if not user:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    if login_id is not None and login_id != user.login_id:
+        existing_user = db.scalar(
+            select(User).where(
+                User.login_id == login_id,
+                User.id != user.id,
+                User.deleted_at.is_(None),
+            )
+        )
+        if existing_user:
+            raise HTTPException(status_code=409, detail="Login ID is already in use.")
+        user.login_id = login_id
 
     if name is not None:
         user.name = name
@@ -48,6 +62,7 @@ async def update_user(
     if profile_image is not None:
         user.profile_image_url = await upload_profile_image(profile_image, str(user.id))
 
+    sync_user_employee_link(db, user)
     db.commit()
     db.refresh(user)
     return UserResponse.model_validate(user)

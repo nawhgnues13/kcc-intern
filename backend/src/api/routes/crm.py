@@ -1,0 +1,313 @@
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, Form, UploadFile
+from sqlalchemy.orm import Session
+
+from src.db import get_db
+from src.schemas.crm import (
+    GroomingRegistrationListResponse,
+    GroomingRegistrationResponse,
+    SalesRegistrationListResponse,
+    SalesRegistrationResponse,
+    ServiceRegistrationListResponse,
+    ServiceRegistrationResponse,
+)
+from src.services.crm_service import (
+    create_grooming_registration,
+    create_sales_registration,
+    create_service_registration,
+    get_grooming_registration_detail,
+    get_sales_registration_detail,
+    get_service_registration_detail,
+    list_grooming_registrations,
+    list_sales_registrations,
+    list_service_registrations,
+    parse_datetime_value,
+    parse_existing_photo_descriptions,
+    parse_keep_photo_ids,
+    parse_photo_descriptions,
+    parse_requested_contents,
+    update_grooming_registration,
+    update_sales_registration,
+    update_service_registration,
+)
+
+router = APIRouter(prefix="/api/crm", tags=["crm"])
+
+
+def _clean_files(files: list[UploadFile]) -> list[UploadFile]:
+    return [file for file in files if file.filename]
+
+
+@router.post("/sales-registrations", response_model=SalesRegistrationResponse)
+async def create_sales_registration_route(
+    employee_id: UUID = Form(...),
+    customer_name: str = Form(...),
+    customer_phone: str | None = Form(default=None),
+    customer_email: str | None = Form(default=None),
+    vehicle_model: str = Form(...),
+    sale_price: float | None = Form(default=None),
+    sale_date: str = Form(...),
+    branch_name: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    requested_contents: str | None = Form(default=None),
+    photo_descriptions: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    return await create_sales_registration(
+        db=db,
+        payload={
+            "employee_id": employee_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_email": customer_email,
+            "vehicle_model": vehicle_model,
+            "sale_price": sale_price,
+            "sale_date": parse_datetime_value(sale_date, "sale_date"),
+            "branch_name": branch_name,
+            "note": note,
+        },
+        requested_contents=parse_requested_contents(requested_contents),
+        photo_descriptions=parse_photo_descriptions(photo_descriptions),
+        files=_clean_files(files),
+    )
+
+
+@router.get("/sales-registrations", response_model=SalesRegistrationListResponse)
+async def list_sales_registrations_route(db: Session = Depends(get_db)):
+    return list_sales_registrations(db=db)
+
+
+@router.get("/sales-registrations/{registration_id}", response_model=SalesRegistrationResponse)
+async def get_sales_registration_detail_route(registration_id: UUID, db: Session = Depends(get_db)):
+    return get_sales_registration_detail(db=db, registration_id=registration_id)
+
+
+@router.put("/sales-registrations/{registration_id}", response_model=SalesRegistrationResponse)
+async def update_sales_registration_route(
+    registration_id: UUID,
+    employee_id: UUID = Form(...),
+    customer_name: str = Form(...),
+    customer_phone: str | None = Form(default=None),
+    customer_email: str | None = Form(default=None),
+    vehicle_model: str = Form(...),
+    sale_price: float | None = Form(default=None),
+    sale_date: str = Form(...),
+    branch_name: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    requested_contents: str | None = Form(default=None),
+    keep_photo_ids: str | None = Form(default=None),
+    photo_descriptions: str | None = Form(default=None),
+    existing_photo_descriptions: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    return await update_sales_registration(
+        db=db,
+        registration_id=registration_id,
+        payload={
+            "employee_id": employee_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_email": customer_email,
+            "vehicle_model": vehicle_model,
+            "sale_price": sale_price,
+            "sale_date": parse_datetime_value(sale_date, "sale_date"),
+            "branch_name": branch_name,
+            "note": note,
+        },
+        requested_contents=parse_requested_contents(requested_contents),
+        keep_photo_ids=parse_keep_photo_ids(keep_photo_ids),
+        photo_descriptions=parse_photo_descriptions(photo_descriptions),
+        existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),
+        files=_clean_files(files),
+    )
+
+
+@router.post("/service-registrations", response_model=ServiceRegistrationResponse)
+async def create_service_registration_route(
+    employee_id: UUID = Form(...),
+    customer_name: str = Form(...),
+    customer_phone: str | None = Form(default=None),
+    customer_email: str | None = Form(default=None),
+    vehicle_model: str = Form(...),
+    service_date: str = Form(...),
+    repair_details: str = Form(...),
+    repair_cost: float | None = Form(default=None),
+    branch_name: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    requested_contents: str | None = Form(default=None),
+    photo_descriptions: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    return await create_service_registration(
+        db=db,
+        payload={
+            "employee_id": employee_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_email": customer_email,
+            "vehicle_model": vehicle_model,
+            "service_date": parse_datetime_value(service_date, "service_date"),
+            "repair_details": repair_details,
+            "repair_cost": repair_cost,
+            "branch_name": branch_name,
+            "note": note,
+        },
+        requested_contents=parse_requested_contents(requested_contents),
+        photo_descriptions=parse_photo_descriptions(photo_descriptions),
+        files=_clean_files(files),
+    )
+
+
+@router.get("/service-registrations", response_model=ServiceRegistrationListResponse)
+async def list_service_registrations_route(db: Session = Depends(get_db)):
+    return list_service_registrations(db=db)
+
+
+@router.get("/service-registrations/{registration_id}", response_model=ServiceRegistrationResponse)
+async def get_service_registration_detail_route(registration_id: UUID, db: Session = Depends(get_db)):
+    return get_service_registration_detail(db=db, registration_id=registration_id)
+
+
+@router.put("/service-registrations/{registration_id}", response_model=ServiceRegistrationResponse)
+async def update_service_registration_route(
+    registration_id: UUID,
+    employee_id: UUID = Form(...),
+    customer_name: str = Form(...),
+    customer_phone: str | None = Form(default=None),
+    customer_email: str | None = Form(default=None),
+    vehicle_model: str = Form(...),
+    service_date: str = Form(...),
+    repair_details: str = Form(...),
+    repair_cost: float | None = Form(default=None),
+    branch_name: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    requested_contents: str | None = Form(default=None),
+    keep_photo_ids: str | None = Form(default=None),
+    photo_descriptions: str | None = Form(default=None),
+    existing_photo_descriptions: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    return await update_service_registration(
+        db=db,
+        registration_id=registration_id,
+        payload={
+            "employee_id": employee_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_email": customer_email,
+            "vehicle_model": vehicle_model,
+            "service_date": parse_datetime_value(service_date, "service_date"),
+            "repair_details": repair_details,
+            "repair_cost": repair_cost,
+            "branch_name": branch_name,
+            "note": note,
+        },
+        requested_contents=parse_requested_contents(requested_contents),
+        keep_photo_ids=parse_keep_photo_ids(keep_photo_ids),
+        photo_descriptions=parse_photo_descriptions(photo_descriptions),
+        existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),
+        files=_clean_files(files),
+    )
+
+
+@router.post("/grooming-registrations", response_model=GroomingRegistrationResponse)
+async def create_grooming_registration_route(
+    employee_id: UUID = Form(...),
+    customer_name: str = Form(...),
+    customer_phone: str | None = Form(default=None),
+    customer_email: str | None = Form(default=None),
+    pet_name: str = Form(...),
+    pet_type: str | None = Form(default=None),
+    breed: str | None = Form(default=None),
+    grooming_details: str = Form(...),
+    price: float | None = Form(default=None),
+    grooming_date: str = Form(...),
+    branch_name: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    requested_contents: str | None = Form(default=None),
+    photo_descriptions: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    return await create_grooming_registration(
+        db=db,
+        payload={
+            "employee_id": employee_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_email": customer_email,
+            "pet_name": pet_name,
+            "pet_type": pet_type,
+            "breed": breed,
+            "grooming_details": grooming_details,
+            "price": price,
+            "grooming_date": parse_datetime_value(grooming_date, "grooming_date"),
+            "branch_name": branch_name,
+            "note": note,
+        },
+        requested_contents=parse_requested_contents(requested_contents),
+        photo_descriptions=parse_photo_descriptions(photo_descriptions),
+        files=_clean_files(files),
+    )
+
+
+@router.get("/grooming-registrations", response_model=GroomingRegistrationListResponse)
+async def list_grooming_registrations_route(db: Session = Depends(get_db)):
+    return list_grooming_registrations(db=db)
+
+
+@router.get("/grooming-registrations/{registration_id}", response_model=GroomingRegistrationResponse)
+async def get_grooming_registration_detail_route(registration_id: UUID, db: Session = Depends(get_db)):
+    return get_grooming_registration_detail(db=db, registration_id=registration_id)
+
+
+@router.put("/grooming-registrations/{registration_id}", response_model=GroomingRegistrationResponse)
+async def update_grooming_registration_route(
+    registration_id: UUID,
+    employee_id: UUID = Form(...),
+    customer_name: str = Form(...),
+    customer_phone: str | None = Form(default=None),
+    customer_email: str | None = Form(default=None),
+    pet_name: str = Form(...),
+    pet_type: str | None = Form(default=None),
+    breed: str | None = Form(default=None),
+    grooming_details: str = Form(...),
+    price: float | None = Form(default=None),
+    grooming_date: str = Form(...),
+    branch_name: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    requested_contents: str | None = Form(default=None),
+    keep_photo_ids: str | None = Form(default=None),
+    photo_descriptions: str | None = Form(default=None),
+    existing_photo_descriptions: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    return await update_grooming_registration(
+        db=db,
+        registration_id=registration_id,
+        payload={
+            "employee_id": employee_id,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "customer_email": customer_email,
+            "pet_name": pet_name,
+            "pet_type": pet_type,
+            "breed": breed,
+            "grooming_details": grooming_details,
+            "price": price,
+            "grooming_date": parse_datetime_value(grooming_date, "grooming_date"),
+            "branch_name": branch_name,
+            "note": note,
+        },
+        requested_contents=parse_requested_contents(requested_contents),
+        keep_photo_ids=parse_keep_photo_ids(keep_photo_ids),
+        photo_descriptions=parse_photo_descriptions(photo_descriptions),
+        existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),
+        files=_clean_files(files),
+    )

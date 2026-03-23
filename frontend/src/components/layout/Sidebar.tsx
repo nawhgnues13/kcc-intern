@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router";
-import { Sparkles, Home, PenSquare, Clock, Settings, BookOpen } from "lucide-react";
+import { Sparkles, Home, PenSquare, Clock, Settings, BookOpen, Users, Car, Wrench, Scissors } from "lucide-react";
 
 export function Sidebar() {
   const location = useLocation();
@@ -9,6 +9,13 @@ export function Sidebar() {
     { label: "새 콘텐츠 작성", path: "/dashboard", icon: <PenSquare className="w-5 h-5" /> },
     { label: "전체 기사", path: "/articles", icon: <BookOpen className="w-5 h-5" /> },
     { label: "작성 기록", path: "/history", icon: <Clock className="w-5 h-5" /> },
+  ];
+
+  const crmItems = [
+    { label: "직원 관리", path: "/employees", icon: <Users className="w-5 h-5" /> },
+    { label: "차량 구매 관리", path: "/crm/sales", icon: <Car className="w-5 h-5" /> },
+    { label: "차량 수리 관리", path: "/crm/service", icon: <Wrench className="w-5 h-5" /> },
+    { label: "애견 미용 관리", path: "/crm/grooming", icon: <Scissors className="w-5 h-5" /> },
   ];
 
   return (
@@ -24,28 +31,58 @@ export function Sidebar() {
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
-        <div className="text-xs font-semibold text-slate-400 mb-3 px-2 uppercase tracking-wider">메뉴</div>
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
-          
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                isActive 
-                  ? "bg-[#3721ED]/10 text-[#3721ED]" 
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <div className={`${isActive ? "text-[#3721ED]" : "text-slate-400"}`}>
-                {item.icon}
-              </div>
-              {item.label}
-            </Link>
-          );
-        })}
+      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6">
+        <div>
+          <div className="text-xs font-semibold text-slate-400 mb-3 px-2 uppercase tracking-wider">메뉴</div>
+          <div className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
+              
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    isActive 
+                      ? "bg-[#3721ED]/10 text-[#3721ED]" 
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
+                >
+                  <div className={`${isActive ? "text-[#3721ED]" : "text-slate-400"}`}>
+                    {item.icon}
+                  </div>
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="text-xs font-semibold text-slate-400 mb-3 px-2 uppercase tracking-wider">임시 CRM (운영)</div>
+          <div className="space-y-1">
+            {crmItems.map((item) => {
+              const isActive = location.pathname.startsWith(item.path);
+              
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    isActive 
+                      ? "bg-slate-800 text-white" 
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <div className={`${isActive ? "text-white" : "text-slate-400"}`}>
+                    {item.icon}
+                  </div>
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Bottom Actions */}

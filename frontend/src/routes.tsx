@@ -9,6 +9,10 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { LoginPage } from "./pages/auth/LoginPage";
 import { SignupPage } from "./pages/auth/SignupPage";
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage";
+import { EmployeeManagementPage } from "./pages/crm/EmployeeManagementPage";
+import { SalesRegistrationPage } from "./pages/crm/SalesRegistrationPage";
+import { ServiceRegistrationPage } from "./pages/crm/ServiceRegistrationPage";
+import { GroomingRegistrationPage } from "./pages/crm/GroomingRegistrationPage";
 import { useAuthStore } from "./store/useAuthStore";
 
 // Protected Route Wrapper
@@ -39,6 +43,12 @@ export const router = createBrowserRouter([
       { path: "articles", Component: ArticleListPage },
       { path: "history", Component: HistoryPage },
       { path: "profile", Component: ProfilePage },
+      
+      // CRM Routes
+      { path: "employees", Component: EmployeeManagementPage },
+      { path: "crm/sales", Component: SalesRegistrationPage },
+      { path: "crm/service", Component: ServiceRegistrationPage },
+      { path: "crm/grooming", Component: GroomingRegistrationPage },
     ],
   },
 ]);

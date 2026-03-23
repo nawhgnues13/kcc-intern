@@ -52,6 +52,7 @@ ALLOWED_CONTENT_FORMATS = {"newsletter", "blog", "instagram"}
                         ],
                         "properties": {
                             "user_id": {"type": "string", "format": "uuid"},
+                            "content_task_id": {"type": "string", "format": "uuid"},
                             "content_format": {"type": "string"},
                             "template_style": {"type": "string"},
                             "instruction": {"type": "string"},
@@ -82,6 +83,17 @@ async def generate_newsletter_route(
         raise HTTPException(status_code=422, detail="user_id is required.") from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="user_id must be a valid UUID.") from exc
+
+    content_task_id = None
+    raw_content_task_id = form.get("content_task_id")
+    if raw_content_task_id:
+        try:
+            content_task_id = UUID(str(raw_content_task_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="content_task_id must be a valid UUID.",
+            ) from exc
 
     content_format = str(form.get("content_format", "")).strip()
     template_style = str(form.get("template_style", "")).strip()
@@ -119,6 +131,7 @@ async def generate_newsletter_route(
     return await generate_newsletter(
         db=db,
         user_id=user_id,
+        content_task_id=content_task_id,
         content_format=content_format,
         template_style=template_style,
         instruction=instruction,
