@@ -24,7 +24,7 @@ SYSTEM_INSTRUCTION = """당신은 웹 검색 에이전트입니다.
   "results": [
     {
       "title": "페이지 제목",
-      "content": "페이지의 주요 내용을 상세하게 작성 (800자 이상)",
+      "content": "페이지의 핵심 내용을 상세하게 작성 (1500자 이상, 메타 정보 제외)",
       "summary": "핵심 내용 요약 (3~5문장, 200자 이상)",
       "original_url": "원본 URL"
     }
@@ -34,7 +34,12 @@ SYSTEM_INSTRUCTION = """당신은 웹 검색 에이전트입니다.
 규칙:
 - title, content, summary 모두 반드시 한국어로 작성할 것 (원문이 영어여도 한국어로 번역)
 - title에 출처(매체명, 사이트명 등)를 포함하지 말 것 (예: "연합뉴스 - ", " | 한국경제" 같은 표현 제외)
-- content는 해당 페이지의 핵심 내용을 충분히 상세하게 작성할 것
+- content 작성 시 절대 포함하지 말 것: 사이트/서비스 소개, 매체 소개, 회사 소개, 광고, 구독 안내, 네비게이션, 저작권 문구, "이 기사는 ~에서 제공합니다" 같은 출처 안내 문장 — 이런 내용이 감지되면 해당 문장을 제거하고 순수 본문만 남길 것
+- content는 오직 해당 주제의 실제 내용(배경, 원인, 경과, 결과, 의미, 수치, 인용 등)만으로 구성할 것
+- content는 1500자 이상 충분히 상세하게 작성할 것
+- content는 주제별로 문단을 나누고 각 문단 사이에 빈 줄(\\n\\n)을 삽입하여 가독성을 높일 것
+- content의 각 문단은 하나의 소주제를 다루며, 문단 첫 문장이 해당 문단의 핵심을 담도록 작성할 것
+- summary 작성 시 절대 포함하지 말 것: 사이트 소개, 매체 정보, 출처 안내 등 — 오직 내용 요약만 작성할 것
 - summary는 한 줄이 아닌 3~5문장으로 작성할 것
 - 반드시 실제 존재하는 URL만 사용 (지어내지 말 것)
 - URL을 알 수 없으면 해당 항목 제외
@@ -73,6 +78,12 @@ def _strip_json_fences(text: str) -> str:
     return text.strip()
 
 
+def _favicon_url(url: str) -> str:
+    from urllib.parse import urlparse
+    domain = urlparse(url).netloc
+    return f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
+
+
 def _build_results(json_items: list, resolved_urls: list[str]) -> list["SearchResultItem"]:
     results = []
     for item, url in zip(json_items, resolved_urls):
@@ -83,6 +94,7 @@ def _build_results(json_items: list, resolved_urls: list[str]) -> list["SearchRe
             content=item.get("content", ""),
             summary=item.get("summary", ""),
             original_url=url,
+            favicon_url=_favicon_url(url),
         ))
     return results
 
@@ -97,6 +109,7 @@ class SearchResultItem(BaseModel):
     content: str
     summary: str
     original_url: str
+    favicon_url: str
 
 
 class SearchResponse(BaseModel):
