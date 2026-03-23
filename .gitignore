@@ -16,6 +16,7 @@ frontend/.vite/
 frontend/*.local
 
 ### Backend (Python) ###
+backend/sql/
 backend/**/__pycache__/
 backend/**/*.py[cod]
 backend/**/*.pyo
