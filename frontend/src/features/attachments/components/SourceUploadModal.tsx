@@ -4,7 +4,7 @@ import { ModalLayout } from "../../../components/shared/ModalLayout";
 
 interface SourceUploadModalProps {
   onClose: () => void;
-  onUpload: (type: "pdf" | "image", name: string) => void;
+  onUpload: (type: "pdf" | "image", name: string, file: File) => void;
   onAddUrl: () => void;
 }
 
@@ -17,7 +17,7 @@ export function SourceUploadModal({ onClose, onUpload, onAddUrl }: SourceUploadM
     
     files.forEach(file => {
       const type = file.type.includes("image") ? "image" : "pdf";
-      onUpload(type, file.name);
+      onUpload(type, file.name, file);
     });
     
     e.target.value = "";

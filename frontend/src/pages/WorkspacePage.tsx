@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import { useSessionStore } from "../store/useSessionStore";
+import { newsletterService } from "../services/api/newsletterService";
 
 import { ChatPanel } from "../features/chat/components/ChatPanel";
 import { EditorPanel } from "../features/newsletter/components/EditorPanel";
@@ -17,10 +18,14 @@ import { useWorkspaceModals } from "../hooks/useWorkspaceModals";
 
 export function WorkspacePage() {
   const location = useLocation();
-  const { attachments, removeAttachment, template, headerFooter } = useSessionStore();
+  const [searchParams] = useSearchParams();
+  const articleId = searchParams.get('id');
+  const isViewMode = searchParams.get('mode') === 'view';
+
+  const { attachments, setAttachments, removeAttachment, template, headerFooter } = useSessionStore();
   
   const {
-    messages, chatInput, setChatInput, handleSendMessage, isGenerating, setIsGenerating, messagesEndRef, appendUserMessage, appendAiMessage
+    messages, setMessages, chatInput, setChatInput, chatMode, setChatMode, handleSendMessage, isGenerating, setIsGenerating, messagesEndRef, appendUserMessage, appendAiMessage
   } = useChat();
 
   const {
@@ -41,8 +46,72 @@ export function WorkspacePage() {
     handleRegenerate(setIsGenerating, appendUserMessage, appendAiMessage);
   };
 
+  // Handle direct API fetching logic for existing articles via ID
   useEffect(() => {
-    if (location.state?.article) {
+    async function loadArticleData() {
+      if (!articleId) return;
+      try {
+        const articleData = await newsletterService.getNewsletter(articleId);
+        // Sync Editor States
+        setNewsletterTitle(articleData.title || "");
+        // Only set bodyContent format (JSON normally, but assume JSON string or object)
+        if (articleData.bodyContent) {
+          // If the backend returns a stringified JSON schema, parse it
+          const contentStr = typeof articleData.bodyContent === 'string' 
+            ? articleData.bodyContent 
+            : JSON.stringify(articleData.bodyContent);
+          setNewsletterContent(contentStr);
+
+          try {
+            const bodyObj = typeof articleData.bodyContent === 'string' ? JSON.parse(articleData.bodyContent) : articleData.bodyContent;
+            const blocks = bodyObj.content || [];
+            const firstImage = blocks.find((b: any) => b.type === 'image');
+            if (firstImage && firstImage.attrs?.src && !firstImage.attrs.src.includes('placehold')) {
+              setHeroImage(firstImage.attrs.src);
+            } else {
+              setHeroImage("");
+            }
+          } catch (e) {
+            setHeroImage("");
+          }
+        }
+
+        // Sync Chat Messages
+        if (articleData.messages && Array.isArray(articleData.messages)) {
+          const mappedMessages = articleData.messages.map((m: any) => ({
+            id: m.id || Math.random().toString(),
+            role: m.role === 'assistant' ? 'ai' : m.role,
+            content: m.messageText || m.message_text || m.content || "",
+            timestamp: m.createdAt ? new Date(m.createdAt) : new Date(),
+          }));
+          setMessages(mappedMessages);
+        }
+
+        // Sync Attachments / Sources
+        if (articleData.sources && Array.isArray(articleData.sources)) {
+          // Map backend sources to attachment store structure
+          const loadedAttachments = articleData.sources.map((s: any) => ({
+            id: s.id || Math.random().toString(36).substring(7),
+            name: s.originalName || s.name || s.title || "Uploaded Source",
+            type: s.sourceType === 'pdf' ? 'pdf' : (s.sourceType === 'image' ? 'image' : 'url'),
+            status: "completed",
+            url: s.storageUrl || s.url || ""
+          }));
+          setAttachments(loadedAttachments as any);
+        }
+
+      } catch (err) {
+        console.error("Failed to fetch article data:", err);
+      }
+    }
+
+    loadArticleData();
+  }, [articleId]);
+
+  // Handle mock incoming via Route state (if fallback or testing without real generation)
+  useEffect(() => {
+    // Only use location state fallback if no realtime ID exists
+    if (location.state?.article && !articleId) {
       const article = location.state.article;
       setNewsletterTitle(article.title);
       setNewsletterContent(`## 원본 기사\n\n${article.excerpt}\n\n**카테고리:** ${article.category}\n**작성자:** ${article.author}\n**발행일:** ${new Date(article.publishedAt).toLocaleDateString()}\n\n---\n\n*위 기사를 바탕으로 새로운 콘텐츠를 작성해주세요.*`);
@@ -53,24 +122,51 @@ export function WorkspacePage() {
       // Clear state so a refresh doesn't overwrite user edits
       window.history.replaceState({}, document.title);
     }
-  }, [location.state, setNewsletterTitle, setNewsletterContent, setHeroImage]);
+  }, [location.state, setNewsletterTitle, setNewsletterContent, setHeroImage, articleId]);
 
   return (
     <div className="absolute inset-0 flex overflow-hidden bg-[#F8F9FB]">
       
       {/* LEFT PANEL: Chat / Prompt Conversation */}
-      <ChatPanel 
-        messages={messages}
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        handleSendMessage={handleSendMessage}
-        isGenerating={isGenerating}
-        messagesEndRef={messagesEndRef}
-      />
+      {!isViewMode && (
+        <ChatPanel 
+          messages={messages}
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          chatMode={chatMode}
+          setChatMode={setChatMode}
+          handleSendMessage={() => {
+            if (articleId) {
+              handleSendMessage(articleId, (updatedArticle: any) => {
+                if (updatedArticle.title) setNewsletterTitle(updatedArticle.title);
+                if (updatedArticle.bodyContent) {
+                  const contentStr = typeof updatedArticle.bodyContent === 'string' 
+                    ? updatedArticle.bodyContent 
+                    : JSON.stringify(updatedArticle.bodyContent);
+                  setNewsletterContent(contentStr);
+
+                  try {
+                    const bodyObj = typeof updatedArticle.bodyContent === 'string' ? JSON.parse(updatedArticle.bodyContent) : updatedArticle.bodyContent;
+                    const blocks = bodyObj.content || [];
+                    const firstImage = blocks.find((b: any) => b.type === 'image');
+                    if (firstImage && firstImage.attrs?.src && !firstImage.attrs.src.includes('placehold')) {
+                      setHeroImage(firstImage.attrs.src);
+                    }
+                  } catch (e) {
+                    // ignore
+                  }
+                }
+              });
+            }
+          }}
+          isGenerating={isGenerating}
+          messagesEndRef={messagesEndRef}
+        />
+      )}
 
       {/* CENTER PANEL: Editor & Preview */}
       <EditorPanel 
-        isGenerating={isGenerating}
+        isGenerating={isGenerating && chatMode === 'edit'}
         newsletterTitle={newsletterTitle}
         setNewsletterTitle={setNewsletterTitle}
         newsletterContent={newsletterContent}
@@ -81,23 +177,27 @@ export function WorkspacePage() {
         setIsEditingContent={setIsEditingContent}
         setShowEmailModal={setShowEmailModal}
         headerFooter={headerFooter}
+        articleId={articleId || undefined}
+        isViewMode={isViewMode}
       />
 
       {/* RIGHT PANEL: References & Settings */}
-      <SettingsPanel 
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        attachments={attachments}
-        setItemToDelete={setItemToDelete}
-        setPreviewItem={setPreviewItem}
-        tempTemplate={tempTemplate}
-        setTempTemplate={setTempTemplate}
-        tempHeaderFooter={tempHeaderFooter}
-        setTempHeaderFooter={setTempHeaderFooter}
-        template={template}
-        headerFooter={headerFooter}
-        handleRegenerate={onRegenerateClick}
-      />
+      {!isViewMode && (
+        <SettingsPanel 
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          attachments={attachments}
+          setItemToDelete={setItemToDelete}
+          setPreviewItem={setPreviewItem}
+          tempTemplate={tempTemplate}
+          setTempTemplate={setTempTemplate}
+          tempHeaderFooter={tempHeaderFooter}
+          setTempHeaderFooter={setTempHeaderFooter}
+          template={template}
+          headerFooter={headerFooter}
+          handleRegenerate={onRegenerateClick}
+        />
+      )}
 
       {/* MODALS */}
       {/* Preview Modal */}

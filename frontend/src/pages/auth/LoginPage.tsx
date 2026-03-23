@@ -10,11 +10,15 @@ export function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (email) {
-      login(email, password);
-      navigate("/");
+      try {
+        await login(email, password);
+        navigate("/");
+      } catch (err) {
+        // Error handling is inside login function (alert)
+      }
     }
   };
 

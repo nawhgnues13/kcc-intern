@@ -1,0 +1,738 @@
+import logging
+from datetime import datetime
+from typing import Any
+from uuid import UUID, uuid4
+
+from fastapi import HTTPException, UploadFile
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from src.models.article import Article
+from src.models.article_ai_message import ArticleAIMessage
+from src.models.article_image import ArticleImage
+from src.models.article_source import ArticleSource
+from src.models.user import User
+from src.schemas.newsletter import (
+    ArticleAIMessageResponse,
+    ArticleSourceResponse,
+    NewsletterDetailResponse,
+    NewsletterGenerateResponse,
+    NewsletterListItemResponse,
+    NewsletterListResponse,
+    NewsletterMessagesResponse,
+    NewsletterImageUploadResponse,
+    NewsletterSaveResponse,
+)
+from src.services.gemini_newsletter_service import (
+    answer_newsletter_question,
+    edit_newsletter_content,
+    generate_newsletter_content,
+    upload_inline_file,
+)
+from src.services.image_service import generate_image
+from src.services.s3_service import upload_newsletter_asset
+
+logger = logging.getLogger(__name__)
+
+
+def _get_user(db: Session, user_id: UUID) -> User:
+    user = db.scalar(select(User).where(User.id == user_id, User.deleted_at.is_(None)))
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return user
+
+
+def _get_article(db: Session, article_id: UUID) -> Article:
+    article = db.scalar(select(Article).where(Article.id == article_id, Article.deleted_at.is_(None)))
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found.")
+    return article
+
+
+def _list_sources(db: Session, article_id: UUID) -> list[ArticleSource]:
+    return list(
+        db.scalars(
+            select(ArticleSource)
+            .where(ArticleSource.article_id == article_id, ArticleSource.deleted_at.is_(None))
+            .order_by(ArticleSource.sort_order.asc(), ArticleSource.created_at.asc())
+        )
+    )
+
+
+def _list_messages(db: Session, article_id: UUID) -> list[ArticleAIMessage]:
+    return list(
+        db.scalars(
+            select(ArticleAIMessage)
+            .where(ArticleAIMessage.article_id == article_id)
+            .order_by(ArticleAIMessage.created_at.asc())
+        )
+    )
+
+
+def _list_articles(db: Session) -> list[Article]:
+    return _list_articles_filtered(db=db, author_user_id=None)
+
+
+def _list_articles_filtered(db: Session, author_user_id: UUID | None) -> list[Article]:
+    stmt = select(Article).where(Article.deleted_at.is_(None))
+    if author_user_id is not None:
+        stmt = stmt.where(Article.author_user_id == author_user_id)
+
+    return list(db.scalars(stmt.order_by(Article.created_at.desc())))
+
+
+def _get_author_map(db: Session, user_ids: list[UUID]) -> dict[UUID, User]:
+    unique_ids = list(dict.fromkeys(user_ids))
+    if not unique_ids:
+        return {}
+
+    users = list(
+        db.scalars(
+            select(User).where(
+                User.id.in_(unique_ids),
+                User.deleted_at.is_(None),
+            )
+        )
+    )
+    return {user.id: user for user in users}
+
+
+def _get_thumbnail_map(db: Session, article_ids: list[UUID]) -> dict[UUID, str]:
+    if not article_ids:
+        return {}
+
+    images = list(
+        db.scalars(
+            select(ArticleImage)
+            .where(
+                ArticleImage.article_id.in_(article_ids),
+                ArticleImage.deleted_at.is_(None),
+            )
+            .order_by(
+                ArticleImage.article_id.asc(),
+                ArticleImage.sort_order.asc(),
+                ArticleImage.created_at.asc(),
+            )
+        )
+    )
+
+    thumbnails: dict[UUID, str] = {}
+    for image in images:
+        if image.article_id not in thumbnails:
+            thumbnails[image.article_id] = image.image_url
+    return thumbnails
+
+
+def _serialize_sources(sources: list[ArticleSource]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(source.id),
+            "source_type": source.source_type,
+            "original_name": source.original_name,
+            "source_url": source.source_url,
+            "storage_url": source.storage_url,
+            "mime_type": source.mime_type,
+            "extracted_text": source.extracted_text,
+            "sort_order": source.sort_order,
+        }
+        for source in sources
+    ]
+
+
+def _serialize_messages(messages: list[ArticleAIMessage]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(message.id),
+            "role": message.role,
+            "message_text": message.message_text,
+            "message_kind": message.message_kind,
+            "created_at": message.created_at.isoformat() if message.created_at else None,
+        }
+        for message in messages
+    ]
+
+
+def _extract_image_urls(body_content: dict[str, Any]) -> list[str]:
+    image_urls: list[str] = []
+    for block in body_content.get("content", []):
+        if block.get("type") == "image":
+            attrs = block.get("attrs") or {}
+            src = attrs.get("src")
+            if isinstance(src, str) and src:
+                image_urls.append(src)
+    return image_urls
+
+
+def _iter_image_attrs(node: dict[str, Any]) -> list[dict[str, Any]]:
+    attrs_list: list[dict[str, Any]] = []
+
+    if node.get("type") == "image":
+        attrs = node.setdefault("attrs", {})
+        attrs_list.append(attrs)
+
+    for child in node.get("content", []):
+        if isinstance(child, dict):
+            attrs_list.extend(_iter_image_attrs(child))
+
+    return attrs_list
+
+
+def _has_inline_image_data(body_content: dict[str, Any]) -> bool:
+    for attrs in _iter_image_attrs(body_content):
+        src = attrs.get("src")
+        if isinstance(src, str) and src.startswith("data:image/"):
+            return True
+    return False
+
+
+def _flatten_text_content(node: dict[str, Any]) -> str:
+    texts: list[str] = []
+    for child in node.get("content", []):
+        child_type = child.get("type")
+        if child_type == "text":
+            text = child.get("text")
+            if isinstance(text, str) and text.strip():
+                texts.append(text.strip())
+        elif isinstance(child, dict):
+            nested = _flatten_text_content(child)
+            if nested:
+                texts.append(nested)
+    return " ".join(part for part in texts if part).strip()
+
+
+def _truncate_summary(text: str, limit: int = 110) -> str:
+    normalized = " ".join(text.split()).strip()
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: limit - 1].rstrip() + "…"
+
+
+def _extract_summary(body_content: dict[str, Any]) -> str | None:
+    blocks = body_content.get("content", [])
+    preferred_order = ("paragraph", "quote", "heading")
+
+    for block_type in preferred_order:
+        for block in blocks:
+            if block.get("type") != block_type:
+                continue
+            text = _flatten_text_content(block)
+            if text:
+                return _truncate_summary(text)
+    return None
+
+
+def _has_unresolved_image_blocks(body_content: dict[str, Any]) -> bool:
+    for block in body_content.get("content", []):
+        if block.get("type") != "image":
+            continue
+
+        attrs = block.get("attrs") or {}
+        src = attrs.get("src")
+        if _needs_generated_image(src):
+            return True
+    return False
+
+
+def _needs_generated_image(src: str | None) -> bool:
+    if not src:
+        return True
+
+    lowered = src.lower().strip()
+    if not lowered.startswith(("http://", "https://")):
+        return True
+
+    placeholder_markers = (
+        "picsum.photos",
+        "placehold.co",
+        "placeholder",
+        "example.com",
+    )
+    return any(marker in lowered for marker in placeholder_markers)
+
+
+def _finalize_warnings(body_content: dict[str, Any], warnings: list[str]) -> list[str]:
+    resolved_all_images = not _has_unresolved_image_blocks(body_content)
+    finalized: list[str] = []
+
+    for warning in warnings:
+        lowered = warning.lower()
+        if resolved_all_images and (
+            "image url" in lowered
+            or "src" in lowered
+            or "placeholder" in lowered
+            or "이미지 url" in warning
+            or "src는 비워" in warning
+            or "src를 비워" in warning
+        ):
+            continue
+        finalized.append(warning)
+
+    return finalized
+
+
+def _build_image_prompt(
+    *,
+    article_title: str | None,
+    content_format: str,
+    template_style: str,
+    alt_text: str | None,
+) -> str:
+    def _to_ascii_hint(value: str | None, fallback: str) -> str:
+        if not value:
+            return fallback
+
+        ascii_only = value.encode("ascii", "ignore").decode("ascii")
+        normalized = " ".join(ascii_only.split())
+        return normalized or fallback
+
+    safe_title = _to_ascii_hint(article_title, "Untitled article")
+    safe_template_style = _to_ascii_hint(template_style, "clean editorial")
+    safe_description = _to_ascii_hint(alt_text, "editorial hero image for the article")
+    return (
+        f"Create a polished editorial illustration for a {content_format} article. "
+        f"Template style hint: {safe_template_style}. "
+        f"Article title hint: {safe_title}. "
+        f"Image brief: {safe_description}. "
+        "Use a clean modern newsletter aesthetic, 16:9 composition. "
+        "Do not render any visible text, letters, numbers, Hangul, logos, signage, UI labels, or captions."
+    )
+
+
+async def _materialize_generated_images(
+    *,
+    body_content: dict[str, Any],
+    article_title: str | None,
+    content_format: str,
+    template_style: str,
+    entity_key: str,
+) -> list[str]:
+    warnings: list[str] = []
+    resolved_content: list[dict[str, Any]] = []
+
+    for index, block in enumerate(body_content.get("content", [])):
+        if block.get("type") != "image":
+            resolved_content.append(block)
+            continue
+
+        attrs = block.setdefault("attrs", {})
+        current_src = attrs.get("src")
+        if not _needs_generated_image(current_src):
+            resolved_content.append(block)
+            continue
+
+        alt_text = attrs.get("alt")
+        prompt = _build_image_prompt(
+            article_title=article_title,
+            content_format=content_format,
+            template_style=template_style,
+            alt_text=alt_text,
+        )
+        last_exc: Exception | None = None
+        for attempt in range(2):
+            try:
+                image_bytes = await generate_image(prompt)
+                uploaded_url = upload_newsletter_asset(
+                    file_name=f"generated-image-{index}.png",
+                    content_type="image/png",
+                    content=image_bytes,
+                    entity_key=entity_key,
+                )
+                attrs["src"] = uploaded_url
+                resolved_content.append(block)
+                last_exc = None
+                break
+            except Exception as exc:
+                last_exc = exc
+                logger.exception(
+                    "Failed to generate image for block %s on attempt %s",
+                    index + 1,
+                    attempt + 1,
+                )
+
+        if last_exc is not None:
+            warnings.append(
+                f"Removed image block {index + 1} after image generation failed twice: "
+                f"{last_exc.__class__.__name__}: {last_exc}"
+            )
+            continue
+
+    body_content["content"] = resolved_content
+    return warnings
+
+
+def _sync_article_images(db: Session, article_id: UUID, body_content: dict[str, Any]) -> None:
+    now = datetime.now()
+    existing = list(
+        db.scalars(
+            select(ArticleImage).where(
+                ArticleImage.article_id == article_id,
+                ArticleImage.deleted_at.is_(None),
+            )
+        )
+    )
+    for image in existing:
+        image.deleted_at = now
+
+    for index, image_url in enumerate(_extract_image_urls(body_content)):
+        db.add(ArticleImage(article_id=article_id, image_url=image_url, sort_order=index))
+
+
+async def generate_newsletter(
+    *,
+    db: Session,
+    user_id: UUID,
+    content_format: str,
+    template_style: str,
+    instruction: str,
+    urls: list[str],
+    files: list[UploadFile],
+) -> NewsletterGenerateResponse:
+    user = _get_user(db, user_id)
+    entity_key = str(uuid4())
+    source_payloads: list[dict[str, Any]] = []
+    gemini_files: list[Any] = []
+
+    for index, url in enumerate(urls):
+        lower_url = url.lower()
+        source_type = "url"
+        if lower_url.endswith(".pdf"):
+            source_type = "pdf"
+        elif any(lower_url.endswith(ext) for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")):
+            source_type = "image"
+
+        source_payloads.append(
+            {
+                "source_type": source_type,
+                "original_name": None,
+                "source_url": url,
+                "storage_url": None,
+                "mime_type": None,
+                "extracted_text": None,
+                "sort_order": index,
+            }
+        )
+
+    for index, file in enumerate(files, start=len(source_payloads)):
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        storage_url = upload_newsletter_asset(
+            file_name=file.filename or "upload.bin",
+            content_type=file.content_type or "application/octet-stream",
+            content=content,
+            entity_key=entity_key,
+        )
+        gemini_files.append(upload_inline_file(file.filename or "upload.bin", content))
+
+        source_payloads.append(
+            {
+                "source_type": "pdf" if file.content_type == "application/pdf" else "image",
+                "original_name": file.filename,
+                "source_url": None,
+                "storage_url": storage_url,
+                "mime_type": file.content_type,
+                "extracted_text": None,
+                "sort_order": index,
+            }
+        )
+
+    generated = generate_newsletter_content(
+        instruction=instruction,
+        content_format=content_format,
+        template_style=template_style,
+        urls=urls,
+        uploaded_files=gemini_files,
+    )
+    image_warnings = await _materialize_generated_images(
+        body_content=generated["bodyContent"],
+        article_title=generated.get("title"),
+        content_format=content_format,
+        template_style=template_style,
+        entity_key=entity_key,
+    )
+
+    final_warnings = _finalize_warnings(
+        generated["bodyContent"],
+        [*generated.get("warnings", []), *image_warnings],
+    )
+
+    article = Article(
+        content_format=content_format,
+        topic=generated.get("topic"),
+        template_style=template_style,
+        title=generated.get("title"),
+        body_content=generated["bodyContent"],
+        generation_meta={
+            "model": "gemini-2.5-flash",
+            "instruction": instruction,
+            "url_count": len(urls),
+            "file_count": len(files),
+            "warnings": final_warnings,
+        },
+        author_user_id=user.id,
+    )
+    db.add(article)
+    db.flush()
+
+    sources: list[ArticleSource] = []
+    for payload in source_payloads:
+        source = ArticleSource(article_id=article.id, **payload)
+        db.add(source)
+        sources.append(source)
+
+    user_message = ArticleAIMessage(
+        article_id=article.id,
+        role="user",
+        message_text=instruction,
+        message_kind="generate",
+    )
+    assistant_message = ArticleAIMessage(
+        article_id=article.id,
+        role="assistant",
+        message_text=generated.get(
+            "assistantMessage",
+            "Draft created. You can now ask questions or request edits.",
+        ),
+        message_kind="generate_result",
+    )
+    db.add(user_message)
+    db.add(assistant_message)
+
+    _sync_article_images(db, article.id, article.body_content)
+    db.commit()
+    db.refresh(article)
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+    for source in sources:
+        db.refresh(source)
+
+    return NewsletterGenerateResponse(
+        article_id=article.id,
+        title=article.title,
+        content_format=article.content_format,
+        topic=article.topic,
+        template_style=article.template_style,
+        author_user_id=article.author_user_id,
+        author_name=user.name,
+        body_content=article.body_content,
+        sources=[ArticleSourceResponse.model_validate(source) for source in sources],
+        messages=[
+            ArticleAIMessageResponse.model_validate(user_message),
+            ArticleAIMessageResponse.model_validate(assistant_message),
+        ],
+        warnings=final_warnings,
+    )
+
+
+def list_newsletters(*, db: Session, author_user_id: UUID | None = None) -> NewsletterListResponse:
+    articles = _list_articles_filtered(db=db, author_user_id=author_user_id)
+    thumbnails = _get_thumbnail_map(db, [article.id for article in articles])
+    author_map = _get_author_map(
+        db,
+        [article.author_user_id for article in articles if article.author_user_id is not None],
+    )
+    return NewsletterListResponse(
+        items=[
+            NewsletterListItemResponse(
+                article_id=article.id,
+                title=article.title,
+                content_format=article.content_format,
+                topic=article.topic,
+                template_style=article.template_style,
+                author_user_id=article.author_user_id,
+                author_name=author_map[article.author_user_id].name
+                if article.author_user_id in author_map
+                else None,
+                thumbnail_image_url=thumbnails.get(article.id),
+                summary=_extract_summary(article.body_content),
+                created_at=article.created_at,
+                updated_at=article.updated_at,
+            )
+            for article in articles
+        ]
+    )
+
+
+async def upload_newsletter_editor_image(
+    *,
+    db: Session,
+    article_id: UUID,
+    file: UploadFile,
+) -> NewsletterImageUploadResponse:
+    article = _get_article(db, article_id)
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Only image files are supported for editor uploads.")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+
+    uploaded_url = upload_newsletter_asset(
+        file_name=file.filename or "editor-upload.bin",
+        content_type=file.content_type or "application/octet-stream",
+        content=content,
+        entity_key=f"article-{article.id}",
+    )
+    return NewsletterImageUploadResponse(image_url=uploaded_url)
+
+
+def get_newsletter_detail(*, db: Session, article_id: UUID) -> NewsletterDetailResponse:
+    article = _get_article(db, article_id)
+    sources = _list_sources(db, article_id)
+    messages = _list_messages(db, article_id)
+    author = None
+    if article.author_user_id is not None:
+        author = db.scalar(
+            select(User).where(
+                User.id == article.author_user_id,
+                User.deleted_at.is_(None),
+            )
+        )
+    return NewsletterDetailResponse(
+        article_id=article.id,
+        content_format=article.content_format,
+        topic=article.topic,
+        template_style=article.template_style,
+        title=article.title,
+        author_user_id=article.author_user_id,
+        author_name=author.name if author else None,
+        body_content=article.body_content,
+        sources=[ArticleSourceResponse.model_validate(source) for source in sources],
+        messages=[ArticleAIMessageResponse.model_validate(message) for message in messages],
+        created_at=article.created_at,
+        updated_at=article.updated_at,
+    )
+
+
+def get_newsletter_messages(*, db: Session, article_id: UUID) -> NewsletterMessagesResponse:
+    _get_article(db, article_id)
+    messages = _list_messages(db, article_id)
+    return NewsletterMessagesResponse(
+        article_id=article_id,
+        messages=[ArticleAIMessageResponse.model_validate(message) for message in messages],
+    )
+
+
+def assistant_chat(*, db: Session, article_id: UUID, message: str) -> tuple[ArticleAIMessage, ArticleAIMessage]:
+    article = _get_article(db, article_id)
+    sources = _list_sources(db, article_id)
+    messages = _list_messages(db, article_id)
+
+    user_message = ArticleAIMessage(
+        article_id=article.id,
+        role="user",
+        message_text=message,
+        message_kind="chat",
+    )
+    db.add(user_message)
+    db.flush()
+
+    result = answer_newsletter_question(
+        article_title=article.title,
+        body_content=article.body_content,
+        sources=_serialize_sources(sources),
+        recent_messages=_serialize_messages(messages),
+        message=message,
+    )
+    assistant_message = ArticleAIMessage(
+        article_id=article.id,
+        role="assistant",
+        message_text=result.get("assistantMessage", ""),
+        message_kind="chat_result",
+    )
+    db.add(assistant_message)
+    db.commit()
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+    return user_message, assistant_message
+
+
+async def assistant_edit(
+    *,
+    db: Session,
+    article_id: UUID,
+    message: str,
+) -> tuple[ArticleAIMessage, ArticleAIMessage, Article]:
+    article = _get_article(db, article_id)
+    sources = _list_sources(db, article_id)
+    messages = _list_messages(db, article_id)
+
+    user_message = ArticleAIMessage(
+        article_id=article.id,
+        role="user",
+        message_text=message,
+        message_kind="edit_request",
+    )
+    db.add(user_message)
+    db.flush()
+
+    result = edit_newsletter_content(
+        article_title=article.title,
+        content_format=article.content_format,
+        template_style=article.template_style,
+        body_content=article.body_content,
+        sources=_serialize_sources(sources),
+        recent_messages=_serialize_messages(messages),
+        message=message,
+    )
+    await _materialize_generated_images(
+        body_content=result["bodyContent"],
+        article_title=result.get("title") or article.title,
+        content_format=article.content_format,
+        template_style=article.template_style,
+        entity_key=f"article-{article.id}",
+    )
+
+    article.title = result.get("title") or article.title
+    article.topic = result.get("topic")
+    article.body_content = result["bodyContent"]
+    article.generation_meta = {
+        **(article.generation_meta or {}),
+        "last_edit_message": message,
+        "last_edit_model": "gemini-2.5-flash",
+    }
+
+    assistant_message = ArticleAIMessage(
+        article_id=article.id,
+        role="assistant",
+        message_text=result.get("assistantMessage", "I updated the article based on your request."),
+        message_kind="edit_result",
+    )
+    db.add(assistant_message)
+    _sync_article_images(db, article.id, article.body_content)
+    db.commit()
+    db.refresh(article)
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+    return user_message, assistant_message, article
+
+
+def save_newsletter(
+    *,
+    db: Session,
+    article_id: UUID,
+    title: str | None,
+    body_content: dict[str, Any],
+) -> NewsletterSaveResponse:
+    article = _get_article(db, article_id)
+    if _has_inline_image_data(body_content):
+        raise HTTPException(
+            status_code=400,
+            detail="Inline base64 images are not supported. Upload editor images first and store their S3 URLs in bodyContent.",
+        )
+    article.title = title
+    article.body_content = body_content
+    article.generation_meta = {
+        **(article.generation_meta or {}),
+        "last_manual_save": datetime.now().isoformat(),
+    }
+    _sync_article_images(db, article.id, body_content)
+    db.commit()
+    db.refresh(article)
+    return NewsletterSaveResponse(
+        article_id=article.id,
+        title=article.title,
+        body_content=article.body_content,
+        updated_at=article.updated_at,
+    )

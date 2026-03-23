@@ -10,7 +10,7 @@ export function useWorkspaceModals() {
   const [showImageReplaceModal, setShowImageReplaceModal] = useState(false);
   
   // Image generation/replacement state
-  const [heroImage, setHeroImage] = useState("https://images.unsplash.com/photo-1718220216044-006f43e3a9b1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBvZmZpY2UlMjB3b3Jrc3BhY2V8ZW58MXx8fHwxNzczMjQwNjA3fDA&ixlib=rb-4.1.0&q=80&w=1080");
+  const [heroImage, setHeroImage] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 

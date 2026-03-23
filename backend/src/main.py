@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from src.api.routes.auth import router as auth_router
 from src.api.routes.search import router as search_router
+from src.api.routes.newsletters import router as newsletters_router
 from src.api.routes.users import router as users_router
 from src.config import settings
 from src.db import check_db_connection
@@ -89,6 +90,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AI Newsletter MVP", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(search_router)
+app.include_router(newsletters_router)
 app.include_router(users_router)
 
 

@@ -24,9 +24,9 @@ export function ProfilePage() {
     role: user.role || ""
   });
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Persist changes to global store
-    updateProfile(formData);
+    await updateProfile(formData);
     setIsEditing(false);
   };
 

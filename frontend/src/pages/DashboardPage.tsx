@@ -126,7 +126,7 @@ export function DashboardPage() {
         {sourceModalOpen && (
           <SourceUploadModal 
             onClose={() => setSourceModalOpen(false)} 
-            onUpload={(type, name) => simulateUpload(type, name)}
+            onUpload={(type, name, file) => simulateUpload(type, name, file)}
             onAddUrl={() => setUrlModalOpen(true)}
           />
         )}
