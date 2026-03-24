@@ -21,7 +21,7 @@ export function HistoryPage() {
         return;
       }
       try {
-        const response: any = await newsletterService.getNewsletters(user.id);
+        const response: any = await newsletterService.getNewsletters(user.id as string);
         let data: NewsletterListItem[] = [];
         if (Array.isArray(response)) {
           data = response as NewsletterListItem[];

@@ -50,8 +50,8 @@ export const newsletterService = {
   },
 
   // 2. 전체 기사 목록 조회
-  getNewsletters: async (userId: string): Promise<Article[]> => {
-    return apiClient.get('/api/newsletters', { params: { user_id: userId } });
+  getNewsletters: async (authorUserId?: string): Promise<Article[]> => {
+    return apiClient.get('/api/newsletters', { params: authorUserId ? { author_user_id: authorUserId } : {} });
   },
 
   // 3. 단일 기사 상세 조회

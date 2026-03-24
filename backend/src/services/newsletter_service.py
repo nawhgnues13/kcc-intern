@@ -1084,6 +1084,14 @@ def _pipeline_content_to_tiptap(content: Any, resolved_image_urls: list[str | No
     return {"type": "doc", "content": blocks}
 
 
+def _get_bot_user_id(db: Session) -> UUID | None:
+    """GMAIL_USER 이메일로 봇 유저 UUID 조회. 없으면 None."""
+    from src.models.user import User
+    from sqlalchemy import select
+    user = db.scalar(select(User).where(User.login_id == settings.gmail_user, User.deleted_at.is_(None)))
+    return user.id if user else None
+
+
 def save_pipeline_newsletter_to_db(
     *,
     content: Any,
@@ -1104,6 +1112,12 @@ def save_pipeline_newsletter_to_db(
     resolved_urls = _resolve_image_urls(images)
     body_content = _pipeline_content_to_tiptap(content, resolved_urls)
 
+    db = SessionLocal()
+    try:
+        bot_user_id = _get_bot_user_id(db)
+    except Exception:
+        bot_user_id = None
+
     article = Article(
         content_format="newsletter",
         topic=topic,
@@ -1120,10 +1134,9 @@ def save_pipeline_newsletter_to_db(
             "recipient_categories": recipient_categories or [],
             "recipient_count": recipient_count,
         },
-        author_user_id=None,
+        author_user_id=bot_user_id,
     )
 
-    db = SessionLocal()
     try:
         db.add(article)
         db.flush()
