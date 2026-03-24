@@ -182,7 +182,7 @@ function applyInlineStyles(html: string): string {
     el.setAttribute('style', `color:#3721ED;text-decoration:underline;`);
   });
   root.querySelectorAll('img').forEach(el => {
-    el.setAttribute('style', `max-width:100%;height:auto;display:block;border-radius:8px;margin:0 0 16px;`);
+    el.setAttribute('style', `max-width:100%;height:auto;display:block;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 16px;`);
   });
 
   return root.innerHTML;
@@ -217,7 +217,7 @@ export function renderEmailHtml(headerFooter: string, bodyContentJson: unknown, 
 <body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;">
 <tr><td align="center" style="padding:32px 16px;">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;">
+<table width="680" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
 ${header}
 <tr><td style="padding:40px 48px 32px;">
   <h1 style="font-size:24px;font-weight:700;margin:0 0 24px;color:#111827;">${title}</h1>
