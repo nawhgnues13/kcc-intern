@@ -56,7 +56,7 @@ export function RegistrationTable<T extends { [key: string]: any }>({
           <tbody>
             {data.map((item, rowIdx) => (
               <motion.tr
-                key={item.id || item.employeeId || item.salesRegistrationId || item.serviceRegistrationId || item.groomingRegistrationId || rowIdx}
+                key={`${item.id || item.employeeId || item.salesRegistrationId || item.serviceRegistrationId || item.groomingRegistrationId || 'row'}-${rowIdx}`}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: rowIdx * 0.05 }}

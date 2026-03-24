@@ -23,6 +23,10 @@ from src.db import check_db_connection
 from src.pipeline.auto_newsletter import run_auto_newsletter_pipeline
 from src.pipeline.it_newsletter import run_it_newsletter_pipeline
 from src.pipeline.kcc_newsletter import run_kcc_newsletter_pipeline
+from src.services.content_generation_worker import (
+    start_content_generation_worker,
+    stop_content_generation_worker,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -77,6 +81,8 @@ async def lifespan(app: FastAPI):
     logger.info("KCC scheduler started")
     logger.info("IT scheduler started")
     logger.info("Auto scheduler started")
+    await start_content_generation_worker()
+    logger.info("Content generation worker started")
 
     if settings.slack_bot_token and settings.slack_app_token:
         from src.services.slack_service import start_socket_mode
@@ -88,6 +94,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    await stop_content_generation_worker()
     scheduler.shutdown()
 
 

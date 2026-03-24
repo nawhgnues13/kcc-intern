@@ -13,6 +13,7 @@ import { EmployeeManagementPage } from "./pages/crm/EmployeeManagementPage";
 import { SalesRegistrationPage } from "./pages/crm/SalesRegistrationPage";
 import { ServiceRegistrationPage } from "./pages/crm/ServiceRegistrationPage";
 import { GroomingRegistrationPage } from "./pages/crm/GroomingRegistrationPage";
+import { GenerationResultsPage } from "./pages/GenerationResultsPage";
 import { useAuthStore } from "./store/useAuthStore";
 
 // Protected Route Wrapper
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
       { path: "workspace", Component: WorkspacePage },
       { path: "articles", Component: ArticleListPage },
       { path: "history", Component: HistoryPage },
+      { path: "generation-results", Component: GenerationResultsPage },
       { path: "profile", Component: ProfilePage },
       
       // CRM Routes
