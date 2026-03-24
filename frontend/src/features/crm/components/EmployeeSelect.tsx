@@ -125,7 +125,7 @@ export function EmployeeSelect({ value, onChange, required = false }: EmployeeSe
                     <div className="flex flex-col items-start gap-0.5">
                       <span>{emp.name}</span>
                       <span className="text-xs text-slate-400 font-normal">
-                        {emp.companyCode === 'kcc_auto' ? 'KCC오토' : 'KCC정보통신'} / {emp.branchName || deptName} / {emp.position}
+                        {emp.companyCode?.toUpperCase() === 'KCC_AUTOGROUP' ? 'KCC오토그룹' : 'KCC정보통신'} / {emp.branchName || deptName} / {emp.position}
                       </span>
                     </div>
                     {isSelected && <Check className="w-4 h-4 text-[#3721ED]" />}
