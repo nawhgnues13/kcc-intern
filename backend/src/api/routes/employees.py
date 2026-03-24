@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from src.db import get_db
 from src.schemas.crm import EmployeeCreateRequest, EmployeeListResponse, EmployeeResponse, EmployeeUpdateRequest
-from src.services.crm_service import create_employee, get_employee_detail, list_employees, update_employee
+from src.services.crm_service import create_employee, delete_employee, get_employee_detail, list_company_codes, list_employees, update_employee
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
@@ -34,6 +34,11 @@ async def create_employee_route(payload: EmployeeCreateRequest, db: Session = De
     return create_employee(db=db, payload=payload.model_dump())
 
 
+@router.get("/company-codes", response_model=list[str])
+async def list_company_codes_route(db: Session = Depends(get_db)):
+    return list_company_codes(db=db)
+
+
 @router.get("/{employee_id}", response_model=EmployeeResponse)
 async def get_employee_detail_route(employee_id: UUID, db: Session = Depends(get_db)):
     return get_employee_detail(db=db, employee_id=employee_id)
@@ -50,3 +55,8 @@ async def update_employee_route(
         employee_id=employee_id,
         payload=payload.model_dump(exclude_none=True),
     )
+
+
+@router.delete("/{employee_id}", status_code=204)
+async def delete_employee_route(employee_id: UUID, db: Session = Depends(get_db)):
+    delete_employee(db=db, employee_id=employee_id)

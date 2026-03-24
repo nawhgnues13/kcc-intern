@@ -50,6 +50,8 @@ export function WorkspacePage() {
     handleImageReplace, handleGenerateNewImage, handleUploadNewImage
   } = useWorkspaceModals();
 
+  const [authorUserId, setAuthorUserId] = useState<string | null>(null);
+
   const onRegenerateClick = async () => {
     setTemplate(tempTemplate);
     setHeaderFooter(tempHeaderFooter);
@@ -80,6 +82,7 @@ export function WorkspacePage() {
       if (!articleId) return;
       try {
         const articleData = await newsletterService.getNewsletter(articleId);
+        setAuthorUserId(articleData.authorUserId ?? null);
         // Sync Editor States
         setNewsletterTitle(articleData.title || "");
         setContentFormat(articleData.contentFormat || 'newsletter');
@@ -227,12 +230,12 @@ export function WorkspacePage() {
 
       {/* CENTER PANEL: Editor & Preview */}
       {contentFormat === 'instagram' ? (
-        <InstagramViewer 
-          platformOutput={platformOutput} 
+        <InstagramViewer
+          platformOutput={platformOutput}
           fallbackContent={newsletterContent}
         />
       ) : contentFormat === 'blog' ? (
-        <BlogViewer 
+        <BlogViewer
           articleId={articleId || undefined}
           newsletterTitle={newsletterTitle}
           setNewsletterTitle={setNewsletterTitle}
@@ -240,7 +243,7 @@ export function WorkspacePage() {
           templateStyle={headerFooter}
         />
       ) : (
-        <EditorPanel 
+        <EditorPanel
           isGenerating={isGenerating && chatMode === 'edit'}
           newsletterTitle={newsletterTitle}
           setNewsletterTitle={setNewsletterTitle}
@@ -254,6 +257,7 @@ export function WorkspacePage() {
           headerFooter={headerFooter}
           articleId={articleId || undefined}
           isViewMode={isViewMode}
+          authorUserId={authorUserId ?? undefined}
         />
       )}
 
@@ -376,10 +380,13 @@ export function WorkspacePage() {
         </div>
       </ModalLayout>
 
-      <EmailSendModal 
-        isOpen={showEmailModal} 
+      <EmailSendModal
+        isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
         title={newsletterTitle}
+        articleId={articleId ?? undefined}
+        headerFooter={headerFooter}
+        bodyContent={newsletterContent}
       />
 
       <ImageReplaceModal 

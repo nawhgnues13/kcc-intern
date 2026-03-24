@@ -49,6 +49,19 @@ class EmployeeListResponse(BaseModel):
     items: list[EmployeeResponse]
 
 
+class CustomerRecipient(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    name: str
+    email: str
+
+
+class CustomerListResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    items: list[CustomerRecipient]
+
+
 class RequestedContentItem(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 

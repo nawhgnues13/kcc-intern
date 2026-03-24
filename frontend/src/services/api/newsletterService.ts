@@ -85,5 +85,15 @@ export const newsletterService = {
   // 8. 기사 삭제
   deleteNewsletter: async (articleId: string): Promise<any> => {
     return apiClient.delete(`/api/newsletters/${articleId}`);
-  }
+  },
+
+  // 9. 이메일 발송
+  sendNewsletter: async (
+    articleId: string,
+    recipients: Array<{ name: string; email: string }>,
+    subject?: string,
+    html?: string,
+  ): Promise<{ articleId: string; sentCount: number; totalCount: number }> => {
+    return apiClient.post(`/api/newsletters/${articleId}/send`, { recipients, subject, html });
+  },
 };

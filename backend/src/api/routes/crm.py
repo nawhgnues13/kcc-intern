@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from src.db import get_db
 from src.schemas.crm import (
+    CustomerListResponse,
     GroomingRegistrationListResponse,
     GroomingRegistrationResponse,
     SalesRegistrationListResponse,
@@ -19,6 +20,7 @@ from src.services.crm_service import (
     get_grooming_registration_detail,
     get_sales_registration_detail,
     get_service_registration_detail,
+    list_customers,
     list_grooming_registrations,
     list_sales_registrations,
     list_service_registrations,
@@ -33,6 +35,14 @@ from src.services.crm_service import (
 )
 
 router = APIRouter(prefix="/api/crm", tags=["crm"])
+
+
+@router.get("/customers", response_model=CustomerListResponse)
+async def list_customers_route(
+    employee_email: str | None = None,
+    db: Session = Depends(get_db),
+):
+    return list_customers(db=db, employee_email=employee_email)
 
 
 def _clean_files(files: list[UploadFile]) -> list[UploadFile]:
