@@ -1363,6 +1363,7 @@ async def send_newsletter(
     article_id: UUID,
     recipients: list[EmailRecipient],
     subject: str | None,
+    html: str | None = None,
 ) -> NewsletterSendResponse:
     article = _get_article(db, article_id)
 
@@ -1370,7 +1371,7 @@ async def send_newsletter(
         raise HTTPException(status_code=422, detail="recipients must not be empty.")
 
     effective_subject = subject or article.title or "뉴스레터"
-    html = _body_content_to_html(article.body_content, article.title)
+    html = html or _body_content_to_html(article.body_content, article.title)
 
     image_urls = _extract_image_urls(article.body_content)
     images = [ImageInfo(type="og", url=url) for url in image_urls]

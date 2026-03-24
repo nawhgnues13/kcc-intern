@@ -277,4 +277,5 @@ async def send_newsletter_route(
         article_id=article_id,
         recipients=payload.recipients,
         subject=payload.subject,
+        html=payload.html,
     )

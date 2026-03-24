@@ -4,12 +4,15 @@ import { ModalLayout } from "../../../components/shared/ModalLayout";
 import { recipientService, EmailRecipient } from "../../../services/api/recipientService";
 import { newsletterService } from "../../../services/api/newsletterService";
 import { useAuthStore } from "../../../store/useAuthStore";
+import { renderEmailHtml } from "../utils/renderEmailHtml";
 
 interface EmailSendModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   articleId?: string;
+  headerFooter?: string;
+  bodyContent?: unknown;
 }
 
 // 고정 그룹
@@ -43,7 +46,7 @@ function GroupIcon({ group, className }: { group: GroupKey; className?: string }
   return <Building2 className={className} />;
 }
 
-export function EmailSendModal({ isOpen, onClose, title, articleId }: EmailSendModalProps) {
+export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter, bodyContent }: EmailSendModalProps) {
   const user = useAuthStore((s) => s.user);
 
   const [subject, setSubject] = useState(title);
@@ -140,7 +143,11 @@ export function EmailSendModal({ isOpen, onClose, title, articleId }: EmailSendM
     setIsSending(true);
     setSendError(null);
     try {
-      const result = await newsletterService.sendNewsletter(articleId, allRecipients, subject || undefined);
+      let html: string | undefined;
+      if (headerFooter && bodyContent) {
+        html = renderEmailHtml(headerFooter, bodyContent, subject || title);
+      }
+      const result = await newsletterService.sendNewsletter(articleId, allRecipients, subject || undefined, html);
       setSendResult({ sentCount: result.sentCount, totalCount: result.totalCount });
     } catch {
       setSendError("이메일 발송 중 오류가 발생했습니다. 다시 시도해주세요.");

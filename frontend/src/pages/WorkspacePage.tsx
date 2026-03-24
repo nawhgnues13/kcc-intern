@@ -385,6 +385,8 @@ export function WorkspacePage() {
         onClose={() => setShowEmailModal(false)}
         title={newsletterTitle}
         articleId={articleId ?? undefined}
+        headerFooter={headerFooter}
+        bodyContent={newsletterContent}
       />
 
       <ImageReplaceModal 

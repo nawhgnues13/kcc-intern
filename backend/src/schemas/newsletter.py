@@ -187,6 +187,7 @@ class NewsletterSendRequest(BaseModel):
 
     recipients: list[EmailRecipient]
     subject: Optional[str] = None
+    html: Optional[str] = None
 
 
 class NewsletterSendResponse(BaseModel):

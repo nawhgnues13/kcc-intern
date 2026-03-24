@@ -92,7 +92,8 @@ export const newsletterService = {
     articleId: string,
     recipients: Array<{ name: string; email: string }>,
     subject?: string,
+    html?: string,
   ): Promise<{ articleId: string; sentCount: number; totalCount: number }> => {
-    return apiClient.post(`/api/newsletters/${articleId}/send`, { recipients, subject });
+    return apiClient.post(`/api/newsletters/${articleId}/send`, { recipients, subject, html });
   },
 };
