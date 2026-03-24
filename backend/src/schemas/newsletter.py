@@ -160,3 +160,25 @@ class NewsletterImageUploadResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
     image_url: str
+
+
+class EmailRecipient(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    name: str = ""
+    email: str
+
+
+class NewsletterSendRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    recipients: list[EmailRecipient]
+    subject: Optional[str] = None
+
+
+class NewsletterSendResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    article_id: UUID
+    sent_count: int
+    total_count: int

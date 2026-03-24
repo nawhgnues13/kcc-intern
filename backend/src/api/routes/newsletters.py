@@ -19,6 +19,8 @@ from src.schemas.newsletter import (
     NewsletterMessagesResponse,
     NewsletterSaveRequest,
     NewsletterSaveResponse,
+    NewsletterSendRequest,
+    NewsletterSendResponse,
 )
 from src.services.newsletter_service import (
     assistant_chat,
@@ -29,6 +31,7 @@ from src.services.newsletter_service import (
     get_newsletter_messages,
     list_newsletters,
     save_newsletter,
+    send_newsletter,
     upload_newsletter_editor_image,
 )
 
@@ -233,3 +236,17 @@ async def save_newsletter_route(
 @router.delete("/{article_id}", response_model=NewsletterDeleteResponse)
 async def delete_newsletter_route(article_id: UUID, db: Session = Depends(get_db)):
     return delete_newsletter(db=db, article_id=article_id)
+
+
+@router.post("/{article_id}/send", response_model=NewsletterSendResponse)
+async def send_newsletter_route(
+    article_id: UUID,
+    payload: NewsletterSendRequest,
+    db: Session = Depends(get_db),
+):
+    return await send_newsletter(
+        db=db,
+        article_id=article_id,
+        recipients=payload.recipients,
+        subject=payload.subject,
+    )

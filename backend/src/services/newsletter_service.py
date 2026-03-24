@@ -16,6 +16,7 @@ from src.models.user import User
 from src.schemas.newsletter import (
     ArticleAIMessageResponse,
     ArticleSourceResponse,
+    EmailRecipient,
     NewsletterDeleteResponse,
     NewsletterDetailResponse,
     NewsletterGenerateResponse,
@@ -24,7 +25,10 @@ from src.schemas.newsletter import (
     NewsletterMessagesResponse,
     NewsletterImageUploadResponse,
     NewsletterSaveResponse,
+    NewsletterSendResponse,
 )
+from src.models.schemas import ImageInfo
+from src.services.email_service import send_email
 from src.services.gemini_newsletter_service import (
     answer_newsletter_question,
     edit_newsletter_content,
@@ -866,4 +870,157 @@ def delete_newsletter(*, db: Session, article_id: UUID) -> NewsletterDeleteRespo
         article_id=article.id,
         deleted_at=article.deleted_at,
         message="Article deleted successfully.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Email send
+# ---------------------------------------------------------------------------
+
+def _apply_marks(text: str, marks: list[dict[str, Any]]) -> str:
+    for mark in marks:
+        mark_type = mark.get("type", "")
+        if mark_type == "bold":
+            text = f"<strong>{text}</strong>"
+        elif mark_type == "italic":
+            text = f"<em>{text}</em>"
+        elif mark_type == "underline":
+            text = f"<u>{text}</u>"
+        elif mark_type == "strike":
+            text = f"<s>{text}</s>"
+        elif mark_type == "code":
+            text = f"<code>{text}</code>"
+        elif mark_type == "link":
+            href = (mark.get("attrs") or {}).get("href", "#")
+            text = f'<a href="{href}" style="color:#2563eb;">{text}</a>'
+    return text
+
+
+def _inline_nodes_to_html(nodes: list[dict[str, Any]]) -> str:
+    parts: list[str] = []
+    for node in nodes:
+        node_type = node.get("type")
+        if node_type == "text":
+            raw = node.get("text", "")
+            marks = node.get("marks") or []
+            parts.append(_apply_marks(raw, marks))
+        elif node_type == "hardBreak":
+            parts.append("<br>")
+        else:
+            parts.append(_inline_nodes_to_html(node.get("content") or []))
+    return "".join(parts)
+
+
+def _body_content_to_html(body_content: dict[str, Any], title: str | None) -> str:
+    blocks = body_content.get("content", [])
+    html_parts: list[str] = []
+
+    if title:
+        html_parts.append(
+            f'<h1 style="font-size:24px;font-weight:700;margin:0 0 24px;color:#111827;">{title}</h1>'
+        )
+
+    for block in blocks:
+        block_type = block.get("type", "")
+        children = block.get("content") or []
+
+        if block_type == "heading":
+            level = (block.get("attrs") or {}).get("level", 2)
+            inner = _inline_nodes_to_html(children)
+            size = {1: "22px", 2: "20px", 3: "18px"}.get(level, "16px")
+            html_parts.append(
+                f'<h{level} style="font-size:{size};font-weight:700;margin:24px 0 8px;color:#111827;">'
+                f"{inner}</h{level}>"
+            )
+
+        elif block_type == "paragraph":
+            inner = _inline_nodes_to_html(children)
+            if inner.strip():
+                html_parts.append(
+                    f'<p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">{inner}</p>'
+                )
+
+        elif block_type == "quote":
+            inner = _inline_nodes_to_html(children)
+            html_parts.append(
+                f'<blockquote style="border-left:4px solid #e5e7eb;margin:16px 0;padding:8px 16px;'
+                f'color:#6b7280;font-style:italic;">{inner}</blockquote>'
+            )
+
+        elif block_type == "image":
+            attrs = block.get("attrs") or {}
+            src = attrs.get("src", "")
+            alt = attrs.get("alt", "")
+            if src:
+                html_parts.append(
+                    f'<img src="{src}" alt="{alt}" '
+                    f'style="max-width:100%;height:auto;display:block;margin:16px 0;border-radius:8px;">'
+                )
+
+        elif block_type in ("bulletList", "orderedList"):
+            tag = "ul" if block_type == "bulletList" else "ol"
+            items_html: list[str] = []
+            for item in children:
+                item_inner = _inline_nodes_to_html(item.get("content") or [])
+                items_html.append(f"<li>{item_inner}</li>")
+            html_parts.append(
+                f'<{tag} style="margin:0 0 16px;padding-left:24px;color:#374151;">'
+                + "".join(items_html)
+                + f"</{tag}>"
+            )
+
+    body = "\n".join(html_parts)
+    return f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;">
+<tr><td align="center" style="padding:32px 16px;">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="padding:40px 48px 32px;">
+{body}
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+
+
+async def send_newsletter(
+    *,
+    db: Session,
+    article_id: UUID,
+    recipients: list[EmailRecipient],
+    subject: str | None,
+) -> NewsletterSendResponse:
+    article = _get_article(db, article_id)
+
+    if not recipients:
+        raise HTTPException(status_code=422, detail="recipients must not be empty.")
+
+    effective_subject = subject or article.title or "뉴스레터"
+    html = _body_content_to_html(article.body_content, article.title)
+
+    image_urls = _extract_image_urls(article.body_content)
+    images = [ImageInfo(type="og", url=url) for url in image_urls]
+
+    recipient_dicts = [{"name": r.name, "email": r.email} for r in recipients]
+    success = await send_email(
+        html=html,
+        images=images,
+        subject=effective_subject,
+        recipients=recipient_dicts,
+    )
+
+    if not success:
+        raise HTTPException(status_code=502, detail="모든 수신자에게 이메일 발송에 실패했습니다.")
+
+    return NewsletterSendResponse(
+        article_id=article_id,
+        sent_count=len(recipients),
+        total_count=len(recipients),
     )

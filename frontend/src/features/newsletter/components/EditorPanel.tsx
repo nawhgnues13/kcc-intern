@@ -9,6 +9,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import { newsletterService } from "../../../services/api/newsletterService";
+import { useAuthStore } from "../../../store/useAuthStore";
 import { Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Undo, Redo, Image as ImageIcon } from "lucide-react";
 
 function renderSimpleMarkdown(line: string, index: number) {
@@ -193,8 +194,9 @@ interface EditorPanelProps {
   setIsEditingContent: (val: boolean) => void;
   setShowEmailModal: (val: boolean) => void;
   headerFooter: string;
-  articleId?: string; // Add articleId to handle save updates seamlessly
-  isViewMode?: boolean; // Hide action buttons when purely viewing
+  articleId?: string;
+  isViewMode?: boolean;
+  authorUserId?: string;
 }
 
 export function EditorPanel({
@@ -210,9 +212,12 @@ export function EditorPanel({
   setShowEmailModal,
   headerFooter,
   articleId,
-  isViewMode
+  isViewMode,
+  authorUserId
 }: EditorPanelProps) {
   const navigate = useNavigate();
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const isAuthor = !authorUserId || currentUserId === authorUserId;
 
   // Helper to safely parse initial content
   const getInitialContent = (content: string) => {
@@ -315,32 +320,34 @@ export function EditorPanel({
           )}
 
           {/* Action Header */}
-          {!isViewMode && (
-            <div className="flex items-center justify-end gap-2 p-4 bg-white border-b border-slate-100 z-10 sticky top-0">
-              <button 
+          <div className="flex items-center justify-end gap-2 p-4 bg-white border-b border-slate-100 z-10 sticky top-0">
+            {!isViewMode && (
+              <button
                 onClick={handleSaveToggle}
                 className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-xl transition-all shadow-sm border ${isEditingContent ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'}`}
               >
                 {isEditingContent ? <><Check className="w-4 h-4" /> 저장하기</> : <><Edit3 className="w-4 h-4" /> 내용 수정하기</>}
               </button>
-              {!isEditingContent && (
-                <>
-                  <button 
-                    onClick={() => setShowEmailModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#3721ED] rounded-xl hover:bg-[#2c1ac0] transition-colors shadow-sm shadow-[#3721ED]/20"
-                  >
-                    <Mail className="w-4 h-4" /> 이메일 보내기
-                  </button>
-                  <button 
+            )}
+            {!isEditingContent && isAuthor && (
+              <>
+                <button
+                  onClick={() => setShowEmailModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#3721ED] rounded-xl hover:bg-[#2c1ac0] transition-colors shadow-sm shadow-[#3721ED]/20"
+                >
+                  <Mail className="w-4 h-4" /> 이메일 보내기
+                </button>
+                {!isViewMode && (
+                  <button
                     onClick={() => navigate('/articles')}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 border border-slate-200 rounded-xl hover:bg-slate-200 transition-colors shadow-sm"
                   >
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" /> 작성 완료
                   </button>
-                </>
-              )}
-            </div>
-          )}
+                )}
+              </>
+            )}
+          </div>
 
           <div className="flex-1 flex flex-col">
             {/* HEADER COMPONENT */}

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from src.config import settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/search", tags=["search"])
+router = APIRouter(prefix="/api/sources/search", tags=["search"])
 client = genai.Client(api_key=settings.gemini_api_key)
 
 

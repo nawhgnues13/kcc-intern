@@ -228,7 +228,7 @@ export function SearchModal({ onClose, onAddUrls }: SearchModalProps) {
                         <div className="font-semibold text-slate-800 text-sm leading-snug">
                           {item.title}
                         </div>
-                        <div className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                        <div className="text-xs text-slate-500 mt-1 line-clamp-1 leading-relaxed">
                           {item.snippet}
                         </div>
                       </button>

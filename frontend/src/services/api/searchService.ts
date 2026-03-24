@@ -19,10 +19,10 @@ export interface SummarizeResponse {
 
 export const searchService = {
   async search(query: string, count = 10): Promise<SearchResponse> {
-    return apiClient.post('/api/search', { query, count });
+    return apiClient.post('/api/sources/search', { query, count });
   },
 
   async summarize(url: string, title: string): Promise<SummarizeResponse> {
-    return apiClient.post('/api/search/summarize', { url, title });
+    return apiClient.post('/api/sources/search/summarize', { url, title });
   },
 };

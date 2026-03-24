@@ -14,6 +14,8 @@ from src.models.service_registration import ServicePhoto, ServiceRegistration
 from src.models.user import User
 from src.schemas.crm import (
     CreatedTaskSummaryResponse,
+    CustomerListResponse,
+    CustomerRecipient,
     EmployeeListResponse,
     EmployeeResponse,
     GroomingRegistrationListResponse,
@@ -95,6 +97,60 @@ def _to_employee_response(employee: Employee, linked_user: User | None) -> Emplo
     )
 
 
+def list_company_codes(*, db: Session) -> list[str]:
+    rows = db.execute(
+        select(Employee.company_code)
+        .where(Employee.deleted_at.is_(None), Employee.company_code.isnot(None))
+        .distinct()
+        .order_by(Employee.company_code)
+    ).scalars().all()
+    return list(rows)
+
+
+def list_customers(*, db: Session, employee_email: str | None = None) -> CustomerListResponse:
+    employee_id: UUID | None = None
+    if employee_email:
+        employee = db.scalar(
+            select(Employee).where(
+                func.lower(Employee.email) == employee_email.strip().lower(),
+                Employee.deleted_at.is_(None),
+            )
+        )
+        if not employee:
+            return CustomerListResponse(items=[])
+        employee_id = employee.id
+
+    def _base_stmt(model, name_col, email_col):
+        stmt = select(name_col, email_col).where(
+            model.deleted_at.is_(None),
+            email_col.isnot(None),
+            email_col != "",
+        )
+        if employee_id:
+            stmt = stmt.where(model.employee_id == employee_id)
+        return stmt
+
+    rows_sales = db.execute(
+        _base_stmt(SalesRegistration, SalesRegistration.customer_name, SalesRegistration.customer_email)
+    ).all()
+    rows_service = db.execute(
+        _base_stmt(ServiceRegistration, ServiceRegistration.customer_name, ServiceRegistration.customer_email)
+    ).all()
+    rows_grooming = db.execute(
+        _base_stmt(GroomingRegistration, GroomingRegistration.customer_name, GroomingRegistration.customer_email)
+    ).all()
+
+    seen: set[str] = set()
+    items: list[CustomerRecipient] = []
+    for name, email in [*rows_sales, *rows_service, *rows_grooming]:
+        key = email.lower()
+        if key not in seen:
+            seen.add(key)
+            items.append(CustomerRecipient(name=name, email=email))
+
+    return CustomerListResponse(items=items)
+
+
 def list_employees(
     *,
     db: Session,
@@ -147,6 +203,12 @@ def get_employee_detail(*, db: Session, employee_id: UUID) -> EmployeeResponse:
     employee = _get_employee(db, employee_id)
     linked_user_map = _get_linked_user_map(db, [employee.id])
     return _to_employee_response(employee, linked_user_map.get(employee.id))
+
+
+def delete_employee(*, db: Session, employee_id: UUID) -> None:
+    employee = _get_employee(db, employee_id)
+    employee.deleted_at = datetime.now()
+    db.commit()
 
 
 def update_employee(*, db: Session, employee_id: UUID, payload: dict[str, Any]) -> EmployeeResponse:

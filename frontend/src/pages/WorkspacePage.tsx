@@ -42,6 +42,8 @@ export function WorkspacePage() {
     handleImageReplace, handleGenerateNewImage, handleUploadNewImage
   } = useWorkspaceModals();
 
+  const [authorUserId, setAuthorUserId] = useState<string | null>(null);
+
   const onRegenerateClick = async () => {
     useSessionStore.getState().setTemplate(tempTemplate);
     useSessionStore.getState().setHeaderFooter(tempHeaderFooter);
@@ -64,6 +66,7 @@ export function WorkspacePage() {
       if (!articleId) return;
       try {
         const articleData = await newsletterService.getNewsletter(articleId);
+        setAuthorUserId(articleData.authorUserId ?? null);
         // Sync Editor States
         setNewsletterTitle(articleData.title || "");
         // Only set bodyContent format (JSON normally, but assume JSON string or object)
@@ -191,7 +194,7 @@ export function WorkspacePage() {
       )}
 
       {/* CENTER PANEL: Editor & Preview */}
-      <EditorPanel 
+      <EditorPanel
         isGenerating={isGenerating && chatMode === 'edit'}
         newsletterTitle={newsletterTitle}
         setNewsletterTitle={setNewsletterTitle}
@@ -205,6 +208,7 @@ export function WorkspacePage() {
         headerFooter={headerFooter}
         articleId={articleId || undefined}
         isViewMode={isViewMode}
+        authorUserId={authorUserId ?? undefined}
       />
 
       {/* RIGHT PANEL: References & Settings */}
@@ -325,10 +329,11 @@ export function WorkspacePage() {
         </div>
       </ModalLayout>
 
-      <EmailSendModal 
-        isOpen={showEmailModal} 
+      <EmailSendModal
+        isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
         title={newsletterTitle}
+        articleId={articleId ?? undefined}
       />
 
       <ImageReplaceModal 

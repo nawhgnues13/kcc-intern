@@ -86,10 +86,14 @@ def _strip_json_fences(text: str) -> str:
 def _parse_json_response(text: str) -> dict[str, Any]:
     cleaned = _strip_json_fences(text)
     try:
-        return json.loads(cleaned)
+        result = json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("JSON 파싱 실패, json-repair로 복구 시도")
-        return json.loads(repair_json(cleaned))
+        result = json.loads(repair_json(cleaned))
+    if isinstance(result, list):
+        logger.warning("JSON 응답이 리스트 형태로 반환됨, 첫 번째 원소 사용")
+        result = result[0] if result else {}
+    return result
 
 
 def _normalize_topic(topic: str | None) -> str | None:
