@@ -16,6 +16,7 @@ interface SettingsPanelProps {
   template: string;
   headerFooter: string;
   handleRegenerate: () => void;
+  isFixedTemplate?: boolean;
 }
 
 export function SettingsPanel({
@@ -30,7 +31,8 @@ export function SettingsPanel({
   setTempHeaderFooter,
   template,
   headerFooter,
-  handleRegenerate
+  handleRegenerate,
+  isFixedTemplate
 }: SettingsPanelProps) {
   return (
     <div className="w-72 bg-white border-l border-slate-200 flex flex-col z-10 shrink-0 shadow-sm shadow-slate-200/50">
@@ -80,27 +82,43 @@ export function SettingsPanel({
               <select 
                 value={tempTemplate}
                 onChange={e => setTempTemplate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] outline-none"
+                disabled={isFixedTemplate}
+                className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 outline-none ${isFixedTemplate ? "opacity-60 cursor-not-allowed bg-slate-50" : "focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED]"}`}
               >
                 <option value="뉴스레터">뉴스레터</option>
                 <option value="인스타그램">인스타그램</option>
                 <option value="블로그">블로그</option>
               </select>
+              {isFixedTemplate && (
+                <p className="text-[10px] text-slate-400 mt-1.5 ml-1">* 이미 생성된 콘텐츠의 플랫폼은 변경할 수 없습니다.</p>
+              )}
             </div>
             
-            <div>
-              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">옵션 테마 설정</label>
-              <select 
-                value={tempHeaderFooter}
-                onChange={e => setTempHeaderFooter(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] outline-none"
-              >
-                <option value="KCC 모던형">KCC 모던형</option>
-                <option value="KCC 창의형">KCC 창의형</option>
-                <option value="KCC 미니멀형">KCC 미니멀형</option>
-                <option value="KCC 기존형">KCC 기존형</option>
-              </select>
-            </div>
+            {tempTemplate !== "인스타그램" && (
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 block">옵션 테마 설정</label>
+                <select 
+                  value={tempHeaderFooter}
+                  onChange={e => setTempHeaderFooter(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] outline-none"
+                >
+                  {tempTemplate === "블로그" ? (
+                    <>
+                      <option value="blog_naver_basic">기본형(네이버)</option>
+                      <option value="blog_html">HTML형</option>
+                      <option value="blog_markdown">Markdown형</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="newsletter_kcc_modern">KCC 모던형</option>
+                      <option value="newsletter_kcc_creative">KCC 창의형</option>
+                      <option value="newsletter_kcc_minimal">KCC 미니멀형</option>
+                      <option value="newsletter_kcc_classic">KCC 기존형</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            )}
 
             {(tempTemplate !== template || tempHeaderFooter !== headerFooter) && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pt-2 border-t border-slate-100">

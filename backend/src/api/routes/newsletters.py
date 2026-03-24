@@ -37,6 +37,12 @@ from src.services.newsletter_service import (
 
 router = APIRouter(prefix="/api/newsletters", tags=["newsletters"])
 ALLOWED_CONTENT_FORMATS = {"newsletter", "blog", "instagram"}
+ALLOWED_BLOG_TEMPLATE_STYLES = {
+    "blog_naver_basic",
+    "blog_html",
+    "blog_markdown",
+}
+ALLOWED_INSTAGRAM_TEMPLATE_STYLES = {"instagram_default"}
 
 
 @router.post(
@@ -62,6 +68,10 @@ ALLOWED_CONTENT_FORMATS = {"newsletter", "blog", "instagram"}
                             "template_style": {"type": "string"},
                             "instruction": {"type": "string"},
                             "urls": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "url_names": {
                                 "type": "array",
                                 "items": {"type": "string"},
                             },
@@ -114,6 +124,22 @@ async def generate_newsletter_route(
         raise HTTPException(
             status_code=422,
             detail="content_format must be one of: newsletter, blog, instagram.",
+        )
+    if content_format == "blog" and template_style not in ALLOWED_BLOG_TEMPLATE_STYLES:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "For blog content, template_style must be one of: "
+                "blog_naver_basic, blog_html, blog_markdown."
+            ),
+        )
+    if (
+        content_format == "instagram"
+        and template_style not in ALLOWED_INSTAGRAM_TEMPLATE_STYLES
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="For instagram content, template_style must be: instagram_default.",
         )
 
     urls = [
@@ -230,6 +256,8 @@ async def save_newsletter_route(
         article_id=article_id,
         title=payload.title,
         body_content=payload.body_content,
+        content_format=payload.content_format,
+        template_style=payload.template_style,
     )
 
 

@@ -30,8 +30,20 @@ export function useDashboard() {
       const urls = urlAttachments.map(a => a.url as string);
       const urlNames = urlAttachments.map(a => a.name || a.url as string);
 
-      // 2. Combine Template and HeaderFooter into one instruction
-      const templateStyle = `${template} / ${headerFooter}`;
+      // 2. Determine content format and template style
+      let finalContentFormat = 'newsletter';
+      let finalTemplateStyle = headerFooter;
+      
+      if (template === '인스타그램') {
+        finalContentFormat = 'instagram';
+        finalTemplateStyle = 'instagram_default';
+      } else if (template === '블로그') {
+        finalContentFormat = 'blog';
+        finalTemplateStyle = headerFooter;
+      } else {
+        finalContentFormat = 'newsletter';
+        finalTemplateStyle = `${template} / ${headerFooter}`;
+      }
 
       // UUID Validation Check
       if (!user?.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id)) {
@@ -46,8 +58,8 @@ export function useDashboard() {
         {
           user_id: user.id,
           instruction: prompt,
-          template_style: templateStyle,
-          content_format: 'newsletter',
+          template_style: finalTemplateStyle,
+          content_format: finalContentFormat,
         },
         files,
         urls,

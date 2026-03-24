@@ -26,7 +26,7 @@ export function HomePage() {
     async function fetchArticles() {
       setLoading(true);
       try {
-        const response = await newsletterService.getNewsletters(user?.id || "");
+        const response = await newsletterService.getNewsletters();
         let articlesArray: any[] = [];
         if (Array.isArray(response)) {
           articlesArray = response;

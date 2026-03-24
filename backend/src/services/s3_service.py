@@ -78,6 +78,34 @@ def upload_newsletter_asset(
     return _put_object(object_key=object_key, content=content, content_type=content_type)
 
 
+def upload_pipeline_image(*, image_bytes: bytes, object_key: str, content_type: str = "image/png") -> str:
+    """파이프라인 이미지를 S3에 업로드하고 presigned URL 반환. S3 미설정 시 빈 문자열 반환."""
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
+
+    if not is_s3_configured():
+        return ""
+
+    s3 = _get_s3_client()
+    try:
+        s3.put_object(
+            Bucket=settings.aws_s3_bucket,
+            Key=object_key,
+            Body=image_bytes,
+            ContentType=content_type,
+        )
+        presigned_url = s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.aws_s3_bucket, "Key": object_key},
+            ExpiresIn=604800,  # 7일
+        )
+        _logger.info("파이프라인 이미지 S3 업로드 완료: %s...", presigned_url[:80])
+        return presigned_url
+    except Exception as exc:
+        _logger.warning("S3 업로드 실패: %s", exc)
+        return ""
+
+
 async def upload_profile_image(file: UploadFile, entity_key: str) -> str:
     if not is_s3_configured():
         raise HTTPException(status_code=500, detail="S3 configuration is incomplete.")

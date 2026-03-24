@@ -8,6 +8,7 @@ import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
 import { newsletterService } from "../../../services/api/newsletterService";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { Bold, Italic, Heading1, Heading2, Heading3, List, ListOrdered, Quote, Undo, Redo, Image as ImageIcon } from "lucide-react";
@@ -248,6 +249,14 @@ export function EditorPanel({
       }),
       Placeholder.configure({
         placeholder: '본문 내용을 입력하세요...',
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-blue-600 underline',
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
       }),
     ],
     content: getInitialContent(newsletterContent),

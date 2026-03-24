@@ -17,6 +17,7 @@ from src.api.routes.employees import router as employees_router
 from src.api.routes.search import router as search_router
 from src.api.routes.newsletters import router as newsletters_router
 from src.api.routes.users import router as users_router
+from src.api.routes.utils import router as utils_router
 from src.config import settings
 from src.db import check_db_connection
 from src.pipeline.auto_newsletter import run_auto_newsletter_pipeline
@@ -98,6 +99,7 @@ app.include_router(content_tasks_router)
 app.include_router(search_router)
 app.include_router(newsletters_router)
 app.include_router(users_router)
+app.include_router(utils_router)
 
 
 @app.post("/trigger/it")

@@ -3,6 +3,11 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from google import genai
+from google.genai import types
+
+from src.config import settings
+
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +22,7 @@ from src.schemas.newsletter import (
     ArticleAIMessageResponse,
     ArticleSourceResponse,
     EmailRecipient,
+    InstagramPlatformOutputResponse,
     NewsletterDeleteResponse,
     NewsletterDetailResponse,
     NewsletterGenerateResponse,
@@ -40,6 +46,13 @@ from src.services.image_service import generate_image
 from src.services.s3_service import upload_newsletter_asset
 
 logger = logging.getLogger(__name__)
+
+BLOG_RENDER_MODES = {
+    "blog_naver_basic": "naver_copy",
+    "blog_html": "html",
+    "blog_markdown": "markdown",
+}
+INSTAGRAM_TEMPLATE_STYLE = "instagram_default"
 
 
 def _get_user(db: Session, user_id: UUID) -> User:
@@ -289,6 +302,99 @@ def _finalize_warnings(body_content: dict[str, Any], warnings: list[str]) -> lis
     return finalized
 
 
+def _extract_instagram_post_text(body_content: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for block in body_content.get("content", []):
+        if block.get("type") not in {"heading", "paragraph", "quote"}:
+            continue
+
+        text = _flatten_text_content(block)
+        if text:
+            lines.append(text)
+
+    normalized = "\n\n".join(line.strip() for line in lines if line.strip()).strip()
+    return normalized
+
+
+def _normalize_instagram_hashtags(raw_value: Any) -> list[str]:
+    candidates: list[str] = []
+
+    if isinstance(raw_value, list):
+        for item in raw_value:
+            if isinstance(item, str):
+                candidates.append(item)
+    elif isinstance(raw_value, str):
+        candidates.extend(raw_value.replace(",", " ").split())
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        cleaned = candidate.strip()
+        if not cleaned:
+            continue
+        if not cleaned.startswith("#"):
+            cleaned = f"#{cleaned.lstrip('#')}"
+        lowered = cleaned.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        normalized.append(cleaned)
+
+    return normalized
+
+
+def _normalize_url_list(raw_value: Any) -> list[str]:
+    if not isinstance(raw_value, list):
+        return []
+
+    normalized: list[str] = []
+    for item in raw_value:
+        if not isinstance(item, str):
+            continue
+        url = item.strip()
+        if url.startswith(("http://", "https://")):
+            normalized.append(url)
+    return normalized
+
+
+def _build_instagram_platform_output(
+    *,
+    raw_value: Any,
+    body_content: dict[str, Any],
+) -> dict[str, Any]:
+    payload = raw_value if isinstance(raw_value, dict) else {}
+
+    post_text = payload.get("postText")
+    if not isinstance(post_text, str) or not post_text.strip():
+        post_text = _extract_instagram_post_text(body_content)
+    post_text = post_text.strip()
+
+    hashtags = _normalize_instagram_hashtags(payload.get("hashtags"))
+    image_download_urls = _normalize_url_list(payload.get("imageDownloadUrls"))
+    if not image_download_urls:
+        image_download_urls = _extract_image_urls(body_content)
+
+    return {
+        "platform": "instagram",
+        "post_text": post_text,
+        "hashtags": hashtags,
+        "image_download_urls": image_download_urls,
+    }
+
+
+def _get_platform_output(article: Article) -> InstagramPlatformOutputResponse | None:
+    meta = article.generation_meta or {}
+    raw_output = meta.get("platform_output")
+    if not isinstance(raw_output, dict):
+        return None
+
+    try:
+        return InstagramPlatformOutputResponse.model_validate(raw_output)
+    except Exception:
+        logger.exception("Failed to parse stored platform_output for article %s", article.id)
+        return None
+
+
 def _build_image_prompt(
     *,
     article_title: str | None,
@@ -296,25 +402,46 @@ def _build_image_prompt(
     template_style: str,
     alt_text: str | None,
 ) -> str:
-    def _to_ascii_hint(value: str | None, fallback: str) -> str:
+    def _normalize_hint(value: str | None, fallback: str) -> str:
         if not value:
             return fallback
 
-        ascii_only = value.encode("ascii", "ignore").decode("ascii")
-        normalized = " ".join(ascii_only.split())
+        normalized = " ".join(str(value).split())
         return normalized or fallback
 
-    safe_title = _to_ascii_hint(article_title, "Untitled article")
-    safe_template_style = _to_ascii_hint(template_style, "clean editorial")
-    safe_description = _to_ascii_hint(alt_text, "editorial hero image for the article")
+    safe_title = _normalize_hint(article_title, "Untitled article")
+    safe_template_style = _normalize_hint(template_style, "clean editorial")
+    safe_description = _normalize_hint(alt_text, "realistic scene related to the article")
+
+    format_hint = "realistic editorial photo for a business newsletter"
+    if content_format == "blog":
+        format_hint = "realistic editorial photo for a blog post"
+    elif content_format == "instagram":
+        format_hint = "realistic social-media photo for an Instagram post"
+
     return (
-        f"Create a polished editorial illustration for a {content_format} article. "
+        f"Create a realistic photo-style image for a {content_format} post. "
+        f"Format direction: {format_hint}. "
         f"Template style hint: {safe_template_style}. "
-        f"Article title hint: {safe_title}. "
-        f"Image brief: {safe_description}. "
-        "Use a clean modern newsletter aesthetic, 16:9 composition. "
-        "Do not render any visible text, letters, numbers, Hangul, logos, signage, UI labels, or captions."
+        f"Article title or subject: {safe_title}. "
+        f"Scene brief: {safe_description}. "
+        "The image must look like a believable real photograph captured with a camera, "
+        "not an illustration, concept art, CGI render, 3D artwork, or poster. "
+        "Prefer natural lighting, realistic materials, practical composition, and an authentic real-world setting. "
+        "Avoid futuristic, sci-fi, fantasy, cyberpunk, surreal, glossy concept-art, or exaggerated neon aesthetics. "
+        "Avoid artificial AI-looking faces, distorted hands, plastic skin, unrealistic reflections, and staged promotional poster style. "
+        "Do not render visible text, letters, numbers, Hangul, logos, brand marks, signage, UI labels, or captions in the image. "
+        "If the scene would normally contain text, keep it out of frame or unreadable. "
+        "Use a clean, brand-safe, professional photographic look."
     )
+
+
+def _resolve_render_mode(content_format: str, template_style: str) -> str:
+    if content_format == "blog":
+        return BLOG_RENDER_MODES.get(template_style, "internal")
+    if content_format == "instagram" and template_style == INSTAGRAM_TEMPLATE_STYLE:
+        return "instagram_post"
+    return "internal"
 
 
 async def _materialize_generated_images(
@@ -533,6 +660,12 @@ async def generate_newsletter(
         generated["bodyContent"],
         [*generated.get("warnings", []), *image_warnings],
     )
+    platform_output: dict[str, Any] | None = None
+    if effective_content_format == "instagram":
+        platform_output = _build_instagram_platform_output(
+            raw_value=generated.get("platformOutput"),
+            body_content=generated["bodyContent"],
+        )
 
     article = Article(
         content_format=effective_content_format,
@@ -546,6 +679,12 @@ async def generate_newsletter(
             "url_count": len(urls),
             "file_count": len(files),
             "content_task_id": str(content_task_id) if content_task_id else None,
+            "prompt_profile": effective_template_style,
+            "render_mode": _resolve_render_mode(
+                effective_content_format,
+                effective_template_style,
+            ),
+            "platform_output": platform_output,
             "warnings": final_warnings,
         },
         author_user_id=user.id,
@@ -606,6 +745,9 @@ async def generate_newsletter(
             ArticleAIMessageResponse.model_validate(assistant_message),
         ],
         warnings=final_warnings,
+        platform_output=InstagramPlatformOutputResponse.model_validate(platform_output)
+        if platform_output
+        else None,
     )
 
 
@@ -686,6 +828,7 @@ def get_newsletter_detail(*, db: Session, article_id: UUID) -> NewsletterDetailR
         messages=[ArticleAIMessageResponse.model_validate(message) for message in messages],
         created_at=article.created_at,
         updated_at=article.updated_at,
+        platform_output=_get_platform_output(article),
     )
 
 
@@ -771,10 +914,18 @@ async def assistant_edit(
     article.title = result.get("title") or article.title
     article.topic = result.get("topic")
     article.body_content = result["bodyContent"]
-    article.generation_meta = {
+    updated_generation_meta = {
         **(article.generation_meta or {}),
         "last_edit_message": message,
         "last_edit_model": "gemini-2.5-flash",
+    }
+    if article.content_format == "instagram":
+        updated_generation_meta["platform_output"] = _build_instagram_platform_output(
+            raw_value=result.get("platformOutput"),
+            body_content=result["bodyContent"],
+        )
+    article.generation_meta = {
+        **updated_generation_meta,
     }
 
     assistant_message = ArticleAIMessage(
@@ -798,6 +949,8 @@ def save_newsletter(
     article_id: UUID,
     title: str | None,
     body_content: dict[str, Any],
+    content_format: str | None = None,
+    template_style: str | None = None,
 ) -> NewsletterSaveResponse:
     article = _get_article(db, article_id)
     if _has_inline_image_data(body_content):
@@ -807,10 +960,20 @@ def save_newsletter(
         )
     article.title = title
     article.body_content = body_content
-    article.generation_meta = {
-        **(article.generation_meta or {}),
-        "last_manual_save": datetime.now().isoformat(),
-    }
+    if content_format:
+        article.content_format = content_format
+    if template_style:
+        article.template_style = template_style
+
+    meta = article.generation_meta or {}
+    meta["last_manual_save"] = datetime.now().isoformat()
+    if article.content_format == "instagram":
+        meta["platform_output"] = _build_instagram_platform_output(
+            raw_value=meta.get("platform_output"),
+            body_content=body_content,
+        )
+    article.generation_meta = meta
+
     _sync_article_images(db, article.id, body_content)
     db.commit()
     db.refresh(article)
@@ -820,6 +983,210 @@ def save_newsletter(
         body_content=article.body_content,
         updated_at=article.updated_at,
     )
+
+
+# ── 파이프라인 자동화 DB 저장 ──────────────────────────────
+
+_PIPELINE_TOPIC_MAP = {
+    "it": "it",
+    "auto": "automotive",
+    "kcc": "company",
+    "keyword": "it",
+}
+
+_PIPELINE_TITLE_MAP = {
+    "it": "IT 뉴스레터",
+    "auto": "자동차 뉴스레터",
+    "kcc": "KCC 소식지",
+    "keyword": "뉴스레터",
+}
+
+# 프론트가 "template / headerFooter" 형식으로 파싱하므로 맞춰줌
+_PIPELINE_TEMPLATE_STYLE_MAP = {
+    "it": "뉴스레터 / KCC 모던형",
+    "auto": "뉴스레터 / KCC 모던형",
+    "kcc": "뉴스레터 / KCC 모던형",
+    "keyword": "뉴스레터 / KCC 모던형",
+}
+
+_gemini_client = genai.Client(api_key=settings.gemini_api_key)
+
+
+def _generate_pipeline_title(content: Any, newsletter_type: str) -> str:
+    """뉴스레터 기사 내용을 바탕으로 의미있는 제목을 AI로 생성. 실패 시 날짜 기반 제목 반환."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    fallback = f"{_PIPELINE_TITLE_MAP.get(newsletter_type, '뉴스레터')} {today}"
+    try:
+        headlines = [getattr(a, "headline", "") for a in content.articles if getattr(a, "headline", "")]
+        intro = getattr(content, "intro", "") or ""
+        prompt = (
+            f"다음은 이번 주 뉴스레터에 담긴 기사 제목들입니다:\n"
+            + "\n".join(f"- {h}" for h in headlines)
+            + (f"\n\n인트로: {intro}" if intro else "")
+            + "\n\n이 뉴스레터 전체를 아우르는 제목을 한 문장으로 만들어주세요. "
+            "날짜나 '뉴스레터'라는 단어는 포함하지 말고, 핵심 트렌드나 키워드가 드러나는 간결한 문장으로 작성하세요. "
+            "제목만 출력하세요 (따옴표 없이)."
+        )
+        response = _gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        title = (response.text or "").strip().strip('"').strip("'")
+        return title if title else fallback
+    except Exception:
+        logger.warning("파이프라인 뉴스레터 제목 생성 실패, 기본 제목 사용")
+        return fallback
+
+
+def _resolve_image_urls(images: list) -> list[str | None]:
+    """이미지 목록에서 HTTP URL만 추출. 파이프라인에서 이미 S3 업로드가 완료된 상태."""
+    resolved: list[str | None] = []
+    for img in images:
+        img_type = getattr(img, "type", None)
+        url = getattr(img, "url", None)
+        resolved.append(url if (img_type == "og" and url and url.startswith("http")) else None)
+    return resolved
+
+
+def _pipeline_content_to_tiptap(content: Any, resolved_image_urls: list[str | None]) -> dict:
+    """pipeline NewsletterContent → TipTap body_content 변환"""
+    blocks: list[dict] = []
+
+    intro = getattr(content, "intro", None)
+    if intro:
+        blocks.append({"type": "paragraph", "content": [{"type": "text", "text": intro}]})
+
+    for i, article in enumerate(content.articles):
+        img_url: str | None = resolved_image_urls[i] if i < len(resolved_image_urls) else None
+
+        if img_url:
+            # image는 TipTap에서 블록 노드 → doc.content 최상위에 위치해야 함
+            blocks.append({
+                "type": "image",
+                "attrs": {"src": img_url, "alt": article.headline},
+            })
+
+        blocks.append({
+            "type": "heading",
+            "attrs": {"level": 2},
+            "content": [{"type": "text", "text": article.headline}],
+        })
+
+        if article.body:
+            blocks.append({"type": "paragraph", "content": [{"type": "text", "text": article.body}]})
+
+        if article.original_link:
+            blocks.append({
+                "type": "paragraph",
+                "content": [{
+                    "type": "text",
+                    "text": "원문 보기",
+                    "marks": [{"type": "link", "attrs": {"href": article.original_link, "target": "_blank"}}],
+                }],
+            })
+
+    return {"type": "doc", "content": blocks}
+
+
+def _get_bot_user_id(db: Session) -> UUID | None:
+    """GMAIL_USER 이메일로 봇 유저 UUID 조회. 없으면 None."""
+    from src.models.user import User
+    from sqlalchemy import select
+    user = db.scalar(select(User).where(User.login_id == settings.gmail_user, User.deleted_at.is_(None)))
+    return user.id if user else None
+
+
+def save_pipeline_newsletter_to_db(
+    *,
+    content: Any,
+    images: list,
+    newsletter_type: str,
+    newsletter_file_id: str,
+    recipient_categories: list[str] | None = None,
+    recipient_count: int = 0,
+    title: str | None = None,
+) -> str | None:
+    """실제 발송된 파이프라인 뉴스레터를 articles 테이블에 저장. 실패해도 발송 결과에 영향 없음."""
+    from src.db import SessionLocal
+
+    if not title:
+        title = _generate_pipeline_title(content, newsletter_type)
+    topic = _PIPELINE_TOPIC_MAP.get(newsletter_type, "it")
+    template_style = _PIPELINE_TEMPLATE_STYLE_MAP.get(newsletter_type, "뉴스레터 / KCC 모던형")
+    resolved_urls = _resolve_image_urls(images)
+    body_content = _pipeline_content_to_tiptap(content, resolved_urls)
+
+    db = SessionLocal()
+    try:
+        bot_user_id = _get_bot_user_id(db)
+    except Exception:
+        bot_user_id = None
+
+    article = Article(
+        content_format="newsletter",
+        topic=topic,
+        template_style=template_style,
+        title=title,
+        body_content=body_content,
+        generation_meta={
+            "source": "pipeline",
+            "pipeline_type": newsletter_type,
+            "pipeline_status": "sent",
+            "newsletter_file_id": newsletter_file_id,
+            "sent_at": datetime.now().isoformat(),
+            "article_count": len(content.articles),
+            "recipient_categories": recipient_categories or [],
+            "recipient_count": recipient_count,
+        },
+        author_user_id=bot_user_id,
+    )
+
+    try:
+        db.add(article)
+        db.flush()
+        _sync_article_images(db, article.id, body_content)
+        db.commit()
+        db.refresh(article)
+        logger.info("파이프라인 뉴스레터 DB 저장 완료: article_id=%s, file_id=%s", article.id, newsletter_file_id)
+        return str(article.id)
+    except Exception:
+        db.rollback()
+        logger.exception("파이프라인 뉴스레터 DB 저장 실패 (file_id=%s)", newsletter_file_id)
+        return None
+    finally:
+        db.close()
+
+
+def update_pipeline_newsletter_status(*, newsletter_file_id: str, status: str) -> None:
+    """newsletter_file_id로 파이프라인 뉴스레터 상태 업데이트 (sent / rejected)"""
+    from src.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        article = db.scalar(
+            select(Article).where(
+                Article.generation_meta["newsletter_file_id"].astext == newsletter_file_id,
+                Article.deleted_at.is_(None),
+            )
+        )
+        if article is None:
+            logger.warning("파이프라인 article 없음 (newsletter_file_id=%s)", newsletter_file_id)
+            return
+
+        meta = dict(article.generation_meta or {})
+        meta["pipeline_status"] = status
+        if status == "sent":
+            meta["sent_at"] = datetime.now().isoformat()
+        elif status == "rejected":
+            meta["rejected_at"] = datetime.now().isoformat()
+        article.generation_meta = meta
+        db.commit()
+        logger.info("파이프라인 상태 업데이트: %s → %s", newsletter_file_id, status)
+    except Exception:
+        db.rollback()
+        logger.exception("파이프라인 상태 업데이트 실패 (newsletter_file_id=%s)", newsletter_file_id)
+    finally:
+        db.close()
 
 
 def delete_newsletter(*, db: Session, article_id: UUID) -> NewsletterDeleteResponse:

@@ -8,6 +8,8 @@ import { EditorPanel } from "../features/newsletter/components/EditorPanel";
 import { SettingsPanel } from "../features/settings/components/SettingsPanel";
 import { EmailSendModal } from "../features/newsletter/components/EmailSendModal";
 import { ImageReplaceModal } from "../features/newsletter/components/ImageReplaceModal";
+import { BlogViewer } from "../features/newsletter/components/BlogViewer";
+import { InstagramViewer } from "../features/newsletter/components/InstagramViewer";
 import { ModalLayout } from "../components/shared/ModalLayout";
 import { Trash2, ExternalLink, X, FileText, Image as ImageIcon, Link2 } from "lucide-react";
 import { AnimatePresence } from "motion/react";
@@ -22,7 +24,13 @@ export function WorkspacePage() {
   const articleId = searchParams.get('id');
   const isViewMode = searchParams.get('mode') === 'view';
 
-  const { attachments, setAttachments, removeAttachment, template, headerFooter } = useSessionStore();
+  const { 
+    attachments, setAttachments, removeAttachment, 
+    template, setTemplate, 
+    headerFooter, setHeaderFooter 
+  } = useSessionStore();
+  const [contentFormat, setContentFormat] = useState<string>('newsletter');
+  const [platformOutput, setPlatformOutput] = useState<any>(null);
   
   const {
     messages, setMessages, chatInput, setChatInput, chatMode, setChatMode, handleSendMessage, isGenerating, setIsGenerating, messagesEndRef, appendUserMessage, appendAiMessage
@@ -45,14 +53,22 @@ export function WorkspacePage() {
   const [authorUserId, setAuthorUserId] = useState<string | null>(null);
 
   const onRegenerateClick = async () => {
-    useSessionStore.getState().setTemplate(tempTemplate);
-    useSessionStore.getState().setHeaderFooter(tempHeaderFooter);
+    setTemplate(tempTemplate);
+    setHeaderFooter(tempHeaderFooter);
     
+    // Update local format instantly so the UI switches between EditorPanel <-> BlogViewer
+    const newFormat = tempTemplate === '인스타그램' ? 'instagram' : (tempTemplate === '블로그' ? 'blog' : 'newsletter');
+    setContentFormat(newFormat);
+
     // Save to DB immediately if we have an articleId
     if (articleId) {
       try {
+        // Now that the backend supports these fields, we can send them to persist the design.
         await newsletterService.updateNewsletter(articleId, {
-          templateStyle: `${tempTemplate} / ${tempHeaderFooter}`
+          title: newsletterTitle,
+          bodyContent: typeof newsletterContent === 'string' ? JSON.parse(newsletterContent) : newsletterContent,
+          contentFormat: newFormat,
+          templateStyle: tempTemplate === '블로그' ? tempHeaderFooter : (tempTemplate === '인스타그램' ? 'instagram_default' : `${tempTemplate} / ${tempHeaderFooter}`)
         });
       } catch (err) {
         console.error("Failed to save template style:", err);
@@ -69,6 +85,9 @@ export function WorkspacePage() {
         setAuthorUserId(articleData.authorUserId ?? null);
         // Sync Editor States
         setNewsletterTitle(articleData.title || "");
+        setContentFormat(articleData.contentFormat || 'newsletter');
+        setPlatformOutput(articleData.platformOutput || null);
+
         // Only set bodyContent format (JSON normally, but assume JSON string or object)
         if (articleData.bodyContent) {
           // If the backend returns a stringified JSON schema, parse it
@@ -93,15 +112,31 @@ export function WorkspacePage() {
 
         // Sync Template and Header/Footer
         if (articleData.templateStyle) {
-          const parts = articleData.templateStyle.split(' / ');
-          if (parts.length === 2) {
-            useSessionStore.getState().setTemplate(parts[0]);
-            useSessionStore.getState().setHeaderFooter(parts[1]);
-            setTempTemplate(parts[0]);
-            setTempHeaderFooter(parts[1]);
+          if (articleData.contentFormat === 'instagram') {
+            setTemplate('인스타그램');
+            setHeaderFooter('instagram_default');
+            setTempTemplate('인스타그램');
+            setTempHeaderFooter('instagram_default');
+          } else if (articleData.contentFormat === 'blog') {
+            setTemplate('블로그');
+            setHeaderFooter(articleData.templateStyle);
+            setTempTemplate('블로그');
+            setTempHeaderFooter(articleData.templateStyle);
           } else {
-            useSessionStore.getState().setTemplate(articleData.templateStyle);
-            setTempTemplate(articleData.templateStyle);
+            // Newsletter format: handles "Platform / Style" or just "Style" (legacy/direct ID)
+            const parts = articleData.templateStyle.split(' / ');
+            if (parts.length === 2) {
+              setTemplate(parts[0]);
+              setHeaderFooter(parts[1]);
+              setTempTemplate(parts[0]);
+              setTempHeaderFooter(parts[1]);
+            } else {
+              // If only ID exists (like "newsletter_kcc_minimal")
+              setTemplate('뉴스레터');
+              setHeaderFooter(articleData.templateStyle);
+              setTempTemplate('뉴스레터');
+              setTempHeaderFooter(articleData.templateStyle);
+            }
           }
         }
 
@@ -135,7 +170,7 @@ export function WorkspacePage() {
     }
 
     loadArticleData();
-  }, [articleId]);
+  }, [articleId, setTemplate, setHeaderFooter, setTempTemplate, setTempHeaderFooter, setNewsletterTitle, setContentFormat, setPlatformOutput, setNewsletterContent, setHeroImage, setMessages, setAttachments]);
 
   // Handle mock incoming via Route state (if fallback or testing without real generation)
   useEffect(() => {
@@ -194,22 +229,37 @@ export function WorkspacePage() {
       )}
 
       {/* CENTER PANEL: Editor & Preview */}
-      <EditorPanel
-        isGenerating={isGenerating && chatMode === 'edit'}
-        newsletterTitle={newsletterTitle}
-        setNewsletterTitle={setNewsletterTitle}
-        newsletterContent={newsletterContent}
-        setNewsletterContent={setNewsletterContent}
-        heroImage={heroImage}
-        handleImageReplace={handleImageReplace}
-        isEditingContent={isEditingContent}
-        setIsEditingContent={setIsEditingContent}
-        setShowEmailModal={setShowEmailModal}
-        headerFooter={headerFooter}
-        articleId={articleId || undefined}
-        isViewMode={isViewMode}
-        authorUserId={authorUserId ?? undefined}
-      />
+      {contentFormat === 'instagram' ? (
+        <InstagramViewer
+          platformOutput={platformOutput}
+          fallbackContent={newsletterContent}
+        />
+      ) : contentFormat === 'blog' ? (
+        <BlogViewer
+          articleId={articleId || undefined}
+          newsletterTitle={newsletterTitle}
+          setNewsletterTitle={setNewsletterTitle}
+          newsletterContent={newsletterContent}
+          templateStyle={headerFooter}
+        />
+      ) : (
+        <EditorPanel
+          isGenerating={isGenerating && chatMode === 'edit'}
+          newsletterTitle={newsletterTitle}
+          setNewsletterTitle={setNewsletterTitle}
+          newsletterContent={newsletterContent}
+          setNewsletterContent={setNewsletterContent}
+          heroImage={heroImage}
+          handleImageReplace={handleImageReplace}
+          isEditingContent={isEditingContent}
+          setIsEditingContent={setIsEditingContent}
+          setShowEmailModal={setShowEmailModal}
+          headerFooter={headerFooter}
+          articleId={articleId || undefined}
+          isViewMode={isViewMode}
+          authorUserId={authorUserId ?? undefined}
+        />
+      )}
 
       {/* RIGHT PANEL: References & Settings */}
       {!isViewMode && (
@@ -226,6 +276,7 @@ export function WorkspacePage() {
           template={template}
           headerFooter={headerFooter}
           handleRegenerate={onRegenerateClick}
+          isFixedTemplate={!!articleId}
         />
       )}
 

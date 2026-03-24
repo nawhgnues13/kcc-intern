@@ -1,7 +1,7 @@
 export function NewsletterFooter({ type }: { type: string }) {
   if (type === "없음") return null;
 
-  if (type === "KCC 모던형") {
+  if (type === "KCC 모던형" || type === "newsletter_kcc_modern") {
     return (
       <div className="bg-slate-50 border-t border-slate-200 p-8 text-center text-sm text-slate-500">
         <p>© {new Date().getFullYear()} KCC Information & Communication Co., Ltd. All rights reserved.</p>
@@ -14,7 +14,7 @@ export function NewsletterFooter({ type }: { type: string }) {
     );
   }
 
-  if (type === "KCC 창의형") {
+  if (type === "KCC 창의형" || type === "newsletter_kcc_creative") {
     return (
       <div className="bg-[#0f172a] text-white p-10 text-center relative overflow-hidden">
         <div className="relative z-10">
@@ -30,7 +30,7 @@ export function NewsletterFooter({ type }: { type: string }) {
     );
   }
 
-  if (type === "KCC 미니멀형") {
+  if (type === "KCC 미니멀형" || type === "newsletter_kcc_minimal") {
     return (
       <div className="border-t border-slate-200 p-8 mt-10 flex flex-col items-center">
         <div className="w-8 h-8 rounded-full border border-slate-300 flex items-center justify-center text-slate-400 text-xs mb-4 hover:bg-slate-50 cursor-pointer">↑</div>
@@ -41,7 +41,7 @@ export function NewsletterFooter({ type }: { type: string }) {
     );
   }
 
-  if (type === "KCC 기존형") {
+  if (type === "KCC 기존형" || type === "newsletter_kcc_classic") {
     return (
       <div className="bg-[#EFE9DF] p-6 text-center border-t border-[#D9CDBF]">
         <p className="text-sm font-semibold text-[#5A4D41]">새해 복 많이 받으세요</p>
