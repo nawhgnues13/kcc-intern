@@ -144,7 +144,7 @@ async def handle_open_selection(ack, body, client):
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    from src.storage.file_store import load_curated, load_newsletter, load_recipients, get_categories
+    from src.storage.file_store import load_curated, load_newsletter, get_db_recipient_options
     data = load_curated(newsletter_id)
     articles = data["articles"]
 
@@ -168,22 +168,21 @@ async def handle_open_selection(ack, body, client):
         for i, a in enumerate(articles)
     ]
 
-    # 발송 대상 옵션 (카테고리별, 전체 없음)
-    all_recipients = load_recipients()
-    categories = get_categories()
+    # 발송 대상 옵션 (DB에서 조회)
+    db_options = get_db_recipient_options()
     recipient_options = [
-        {"text": {"type": "plain_text", "text": f"{cat} ({len([r for r in all_recipients if r['category'] == cat])}명)"}, "value": cat}
-        for cat in categories
+        {"text": {"type": "plain_text", "text": f"{opt['label']} ({opt['count']}명)"}, "value": opt["value"]}
+        for opt in db_options
     ]
 
     # newsletter_type별 기본 수신자
     default_cats = {
-        "it": ["정보통신"],
-        "auto": ["오토"],
-        "kcc": ["정보통신", "오토"],
-    }.get(newsletter_type, categories[:1])
+        "it": ["KCC_IT"],
+        "auto": ["KCC_AUTOGROUP"],
+        "kcc": ["KCC_IT", "KCC_AUTOGROUP"],
+    }.get(newsletter_type, [db_options[0]["value"]] if db_options else [])
     recipient_defaults = [opt for opt in recipient_options if opt["value"] in default_cats]
-    if not recipient_defaults:
+    if not recipient_defaults and recipient_options:
         recipient_defaults = [recipient_options[0]]
 
     await client.views_open(
@@ -253,7 +252,8 @@ async def handle_selection_submit(ack, body, client, view):
     ]
 
     label = {"it": "IT 뉴스레터", "auto": "자동차 뉴스레터", "kcc": "KCC 소식지"}.get(newsletter_type, "뉴스레터")
-    recipient_label = " + ".join(recipient_categories)
+    _cat_label = {"KCC_IT": "KCC정보통신", "KCC_AUTOGROUP": "KCC오토그룹", "customers": "전체 고객"}
+    recipient_label = " + ".join(_cat_label.get(c, c) for c in recipient_categories)
 
     await client.chat_update(
         channel=channel_id,
@@ -290,7 +290,7 @@ async def _run_phase2(
     from src.services import email_service, image_service, template_service
     from src.storage import file_store
     from src.models.schemas import NewsletterStatus
-    from src.storage.file_store import load_curated, load_newsletter, load_recipients
+    from src.storage.file_store import load_curated, load_newsletter
 
     label = {"it": "IT 뉴스레터", "auto": "자동차 뉴스레터", "kcc": "KCC 소식지"}.get(newsletter_type, "뉴스레터")
     subject_prefix = {"it": "IT 트렌드 위클리", "auto": "KCC오토 위클리", "kcc": "KCC 이번 달 소식"}.get(newsletter_type, "뉴스레터")
@@ -355,6 +355,7 @@ async def _run_phase2(
             file_store.save_newsletter(send_id, content, html, images, newsletter_type=newsletter_type)
 
         # 이메일 발송 (복수 카테고리 합산, 이메일 중복 제거)
+        from src.storage.file_store import load_recipients
         seen_emails: set[str] = set()
         recipients = []
         for cat in recipient_categories:
@@ -385,7 +386,8 @@ async def _run_phase2(
                 )
             except Exception as e:
                 logger.warning(f"발송 후 DB 저장 실패 (계속 진행): {e}")
-            recipient_label = f"{' + '.join(recipient_categories)} {len(recipients)}명"
+            _cat_label = {"KCC_IT": "KCC정보통신", "KCC_AUTOGROUP": "KCC오토그룹", "customers": "전체 고객"}
+            recipient_label = f"{' + '.join(_cat_label.get(c, c) for c in recipient_categories)} {len(recipients)}명"
             result_text = f"✅ *{user}* 님이 승인 — *{label}* *{recipient_label}* 발송 완료! (`{send_id}`)"
         else:
             result_text = f"❌ 이메일 발송 실패. 수동으로 확인해주세요. (`{send_id}`)"
