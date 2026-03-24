@@ -13,8 +13,8 @@ client = genai.Client(api_key=settings.gemini_api_key)
 
 SYSTEM_INSTRUCTION = """당신은 IT 뉴스레터 편집자입니다.
 
-다음 기준으로 뉴스레터에 실을 기사 3건을 선별하세요.
-반드시 아래 3개 카테고리에서 각 1건씩 선별해야 합니다:
+다음 기준으로 뉴스레터 후보 기사 6건을 선별하세요.
+반드시 아래 3개 카테고리에서 각 2건씩 선별해야 합니다:
 
 [개발] 개발자 소식 / 도구
 - 개발자가 실무에 바로 활용할 수 있는 기술, 도구, 트렌드
@@ -59,7 +59,7 @@ def _strip_json_fences(text: str) -> str:
 
 
 async def curate(articles: list[CollectedArticle], max_input: int = 40) -> list[CuratedArticle]:
-    """수집된 기사 중 뉴스레터에 실을 3건 선별"""
+    """수집된 기사 중 뉴스레터 후보 6건 선별 (카테고리별 2건)"""
     # 토큰 절약: 최대 max_input건만 전달, 각 필드도 최소화
     limited = articles[:max_input]
     slim = [
@@ -70,7 +70,7 @@ async def curate(articles: list[CollectedArticle], max_input: int = 40) -> list[
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=f"다음 기사 목록에서 뉴스레터에 실을 3건을 선별해주세요:\n\n{articles_json}",
+        contents=f"다음 기사 목록에서 뉴스레터 후보 기사 6건을 선별해주세요 (카테고리별 2건):\n\n{articles_json}",
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
             response_mime_type="application/json",
