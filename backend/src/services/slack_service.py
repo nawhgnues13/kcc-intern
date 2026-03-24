@@ -144,18 +144,25 @@ async def handle_open_selection(ack, body, client):
     channel_id = body["channel"]["id"]
     message_ts = body["message"]["ts"]
 
-    from src.storage.file_store import load_curated, load_recipients, get_categories
+    from src.storage.file_store import load_curated, load_newsletter, load_recipients, get_categories
     data = load_curated(newsletter_id)
     articles = data["articles"]
 
-    # 체크박스 옵션 (전부 기본 선택, Slack 150자 제한)
-    def _opt_text(category: str, title: str) -> str:
-        full = f"[{category}] {title}"
-        return full if len(full) <= 150 else full[:147] + "..."
+    # 에디터가 작성한 한국어 헤드라인 로드 (없으면 원문 제목 fallback)
+    headlines: list[str] = []
+    try:
+        stored = load_newsletter(newsletter_id)
+        headlines = [a.headline for a in stored.content.articles]
+    except Exception:
+        pass
+
+    def _opt_text(i: int, category: str, title: str) -> str:
+        text = headlines[i] if i < len(headlines) else title
+        return text if len(text) <= 150 else text[:147] + "..."
 
     checkbox_options = [
         {
-            "text": {"type": "plain_text", "text": _opt_text(a["category"], a["title"])},
+            "text": {"type": "plain_text", "text": _opt_text(i, a["category"], a["title"])},
             "value": str(i),
         }
         for i, a in enumerate(articles)
@@ -295,6 +302,7 @@ async def _run_phase2(
         if sorted(selected_indices) == list(range(total_count)):
             # 전체 선택 → 기존 뉴스레터 HTML 재활용
             stored = load_newsletter(newsletter_id)
+            content = stored.content
             html = stored.html
             images = stored.images
             send_id = newsletter_id
@@ -326,7 +334,8 @@ async def _run_phase2(
                             Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                             Path(save_path).write_bytes(image_bytes)
                             img = ImageInfo(type="generated", file_path=save_path)
-                            article.image_url = f"cid:article_{i}"
+                            img = await image_service.upload_image_to_s3(img, f"newsletter-assets/pipeline/{send_id}_{i}.png")
+                            article.image_url = img.url if (img.type == "og" and img.url) else f"cid:article_{i}"
                         except Exception:
                             img = ImageInfo(type="none")
                 else:
@@ -335,6 +344,7 @@ async def _run_phase2(
                         image_prompt=article.image_prompt or "",
                         save_path=f"data/images/{send_id}_{i}.png",
                     )
+                    img = await image_service.upload_image_to_s3(img, f"newsletter-assets/pipeline/{send_id}_{i}.png")
                     if img.type == "og" and img.url:
                         article.image_url = img.url
                     elif img.type == "generated" and img.file_path:
@@ -363,6 +373,18 @@ async def _run_phase2(
 
         if success:
             file_store.update_status(send_id, NewsletterStatus.SENT)
+            try:
+                from src.services.newsletter_service import save_pipeline_newsletter_to_db
+                save_pipeline_newsletter_to_db(
+                    content=content,
+                    images=images,
+                    newsletter_type=newsletter_type,
+                    newsletter_file_id=newsletter_id,
+                    recipient_categories=recipient_categories,
+                    recipient_count=len(recipients),
+                )
+            except Exception as e:
+                logger.warning(f"발송 후 DB 저장 실패 (계속 진행): {e}")
             recipient_label = f"{' + '.join(recipient_categories)} {len(recipients)}명"
             result_text = f"✅ *{user}* 님이 승인 — *{label}* *{recipient_label}* 발송 완료! (`{send_id}`)"
         else:

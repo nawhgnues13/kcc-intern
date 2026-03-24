@@ -34,6 +34,7 @@ async def run_it_newsletter_pipeline() -> str:
             image_prompt=article.image_prompt or "",
             save_path=f"data/images/{newsletter_id}_{i}.png",
         )
+        img = await image_service.upload_image_to_s3(img, f"newsletter-assets/pipeline/{newsletter_id}_{i}.png")
         if img.type == "og" and img.url:
             article.image_url = img.url
         elif img.type == "generated" and img.file_path:
@@ -102,6 +103,7 @@ async def run_keyword_pipeline(keyword: str) -> str:
             image_prompt=article.image_prompt or "",
             save_path=f"data/images/{newsletter_id}_{i}.png",
         )
+        img = await image_service.upload_image_to_s3(img, f"newsletter-assets/pipeline/{newsletter_id}_{i}.png")
         if img.type == "og" and img.url:
             article.image_url = img.url
         elif img.type == "generated" and img.file_path:

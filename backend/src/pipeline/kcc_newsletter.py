@@ -59,7 +59,8 @@ async def run_kcc_newsletter_pipeline() -> str:
                 Path(save_path).parent.mkdir(parents=True, exist_ok=True)
                 Path(save_path).write_bytes(image_bytes)
                 img = ImageInfo(type="generated", file_path=save_path)
-                article.image_url = f"cid:article_{i}"
+                img = await image_service.upload_image_to_s3(img, f"newsletter-assets/pipeline/{newsletter_id}_{i}.png")
+                article.image_url = img.url if (img.type == "og" and img.url) else f"cid:article_{i}"
             except Exception:
                 img = ImageInfo(type="none")
         images.append(img)

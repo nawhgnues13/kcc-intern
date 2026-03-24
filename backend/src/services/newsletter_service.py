@@ -3,6 +3,11 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from google import genai
+from google.genai import types
+
+from src.config import settings
+
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -816,6 +821,197 @@ def save_newsletter(
         body_content=article.body_content,
         updated_at=article.updated_at,
     )
+
+
+# ── 파이프라인 자동화 DB 저장 ──────────────────────────────
+
+_PIPELINE_TOPIC_MAP = {
+    "it": "it",
+    "auto": "automotive",
+    "kcc": "company",
+    "keyword": "it",
+}
+
+_PIPELINE_TITLE_MAP = {
+    "it": "IT 뉴스레터",
+    "auto": "자동차 뉴스레터",
+    "kcc": "KCC 소식지",
+    "keyword": "뉴스레터",
+}
+
+# 프론트가 "template / headerFooter" 형식으로 파싱하므로 맞춰줌
+_PIPELINE_TEMPLATE_STYLE_MAP = {
+    "it": "뉴스레터 / KCC 모던형",
+    "auto": "뉴스레터 / KCC 모던형",
+    "kcc": "뉴스레터 / KCC 모던형",
+    "keyword": "뉴스레터 / KCC 모던형",
+}
+
+_gemini_client = genai.Client(api_key=settings.gemini_api_key)
+
+
+def _generate_pipeline_title(content: Any, newsletter_type: str) -> str:
+    """뉴스레터 기사 내용을 바탕으로 의미있는 제목을 AI로 생성. 실패 시 날짜 기반 제목 반환."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    fallback = f"{_PIPELINE_TITLE_MAP.get(newsletter_type, '뉴스레터')} {today}"
+    try:
+        headlines = [getattr(a, "headline", "") for a in content.articles if getattr(a, "headline", "")]
+        intro = getattr(content, "intro", "") or ""
+        prompt = (
+            f"다음은 이번 주 뉴스레터에 담긴 기사 제목들입니다:\n"
+            + "\n".join(f"- {h}" for h in headlines)
+            + (f"\n\n인트로: {intro}" if intro else "")
+            + "\n\n이 뉴스레터 전체를 아우르는 제목을 한 문장으로 만들어주세요. "
+            "날짜나 '뉴스레터'라는 단어는 포함하지 말고, 핵심 트렌드나 키워드가 드러나는 간결한 문장으로 작성하세요. "
+            "제목만 출력하세요 (따옴표 없이)."
+        )
+        response = _gemini_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        title = (response.text or "").strip().strip('"').strip("'")
+        return title if title else fallback
+    except Exception:
+        logger.warning("파이프라인 뉴스레터 제목 생성 실패, 기본 제목 사용")
+        return fallback
+
+
+def _resolve_image_urls(images: list) -> list[str | None]:
+    """이미지 목록에서 HTTP URL만 추출. 파이프라인에서 이미 S3 업로드가 완료된 상태."""
+    resolved: list[str | None] = []
+    for img in images:
+        img_type = getattr(img, "type", None)
+        url = getattr(img, "url", None)
+        resolved.append(url if (img_type == "og" and url and url.startswith("http")) else None)
+    return resolved
+
+
+def _pipeline_content_to_tiptap(content: Any, resolved_image_urls: list[str | None]) -> dict:
+    """pipeline NewsletterContent → TipTap body_content 변환"""
+    blocks: list[dict] = []
+
+    intro = getattr(content, "intro", None)
+    if intro:
+        blocks.append({"type": "paragraph", "content": [{"type": "text", "text": intro}]})
+
+    for i, article in enumerate(content.articles):
+        img_url: str | None = resolved_image_urls[i] if i < len(resolved_image_urls) else None
+
+        if img_url:
+            # image는 TipTap에서 블록 노드 → doc.content 최상위에 위치해야 함
+            blocks.append({
+                "type": "image",
+                "attrs": {"src": img_url, "alt": article.headline},
+            })
+
+        blocks.append({
+            "type": "heading",
+            "attrs": {"level": 2},
+            "content": [{"type": "text", "text": article.headline}],
+        })
+
+        if article.body:
+            blocks.append({"type": "paragraph", "content": [{"type": "text", "text": article.body}]})
+
+        if article.original_link:
+            blocks.append({
+                "type": "paragraph",
+                "content": [{
+                    "type": "text",
+                    "text": "원문 보기",
+                    "marks": [{"type": "link", "attrs": {"href": article.original_link, "target": "_blank"}}],
+                }],
+            })
+
+    return {"type": "doc", "content": blocks}
+
+
+def save_pipeline_newsletter_to_db(
+    *,
+    content: Any,
+    images: list,
+    newsletter_type: str,
+    newsletter_file_id: str,
+    recipient_categories: list[str] | None = None,
+    recipient_count: int = 0,
+    title: str | None = None,
+) -> str | None:
+    """실제 발송된 파이프라인 뉴스레터를 articles 테이블에 저장. 실패해도 발송 결과에 영향 없음."""
+    from src.db import SessionLocal
+
+    if not title:
+        title = _generate_pipeline_title(content, newsletter_type)
+    topic = _PIPELINE_TOPIC_MAP.get(newsletter_type, "it")
+    template_style = _PIPELINE_TEMPLATE_STYLE_MAP.get(newsletter_type, "뉴스레터 / KCC 모던형")
+    resolved_urls = _resolve_image_urls(images)
+    body_content = _pipeline_content_to_tiptap(content, resolved_urls)
+
+    article = Article(
+        content_format="newsletter",
+        topic=topic,
+        template_style=template_style,
+        title=title,
+        body_content=body_content,
+        generation_meta={
+            "source": "pipeline",
+            "pipeline_type": newsletter_type,
+            "pipeline_status": "sent",
+            "newsletter_file_id": newsletter_file_id,
+            "sent_at": datetime.now().isoformat(),
+            "article_count": len(content.articles),
+            "recipient_categories": recipient_categories or [],
+            "recipient_count": recipient_count,
+        },
+        author_user_id=None,
+    )
+
+    db = SessionLocal()
+    try:
+        db.add(article)
+        db.flush()
+        _sync_article_images(db, article.id, body_content)
+        db.commit()
+        db.refresh(article)
+        logger.info("파이프라인 뉴스레터 DB 저장 완료: article_id=%s, file_id=%s", article.id, newsletter_file_id)
+        return str(article.id)
+    except Exception:
+        db.rollback()
+        logger.exception("파이프라인 뉴스레터 DB 저장 실패 (file_id=%s)", newsletter_file_id)
+        return None
+    finally:
+        db.close()
+
+
+def update_pipeline_newsletter_status(*, newsletter_file_id: str, status: str) -> None:
+    """newsletter_file_id로 파이프라인 뉴스레터 상태 업데이트 (sent / rejected)"""
+    from src.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        article = db.scalar(
+            select(Article).where(
+                Article.generation_meta["newsletter_file_id"].astext == newsletter_file_id,
+                Article.deleted_at.is_(None),
+            )
+        )
+        if article is None:
+            logger.warning("파이프라인 article 없음 (newsletter_file_id=%s)", newsletter_file_id)
+            return
+
+        meta = dict(article.generation_meta or {})
+        meta["pipeline_status"] = status
+        if status == "sent":
+            meta["sent_at"] = datetime.now().isoformat()
+        elif status == "rejected":
+            meta["rejected_at"] = datetime.now().isoformat()
+        article.generation_meta = meta
+        db.commit()
+        logger.info("파이프라인 상태 업데이트: %s → %s", newsletter_file_id, status)
+    except Exception:
+        db.rollback()
+        logger.exception("파이프라인 상태 업데이트 실패 (newsletter_file_id=%s)", newsletter_file_id)
+    finally:
+        db.close()
 
 
 def delete_newsletter(*, db: Session, article_id: UUID) -> NewsletterDeleteResponse:
