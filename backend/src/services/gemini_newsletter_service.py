@@ -143,6 +143,75 @@ INSTAGRAM_TEMPLATE_GUIDANCE = """
 - A good flow is: hook -> short value explanation -> practical point -> soft CTA -> hashtags.
 """.strip()
 
+CRM_GENERATION_GUIDANCE = """
+- This content is being generated from a CRM registration with real business facts and real uploaded photos.
+- Treat the CRM source data as the primary source of truth.
+- Use the uploaded or registered photos as the visual basis whenever possible.
+- Do not invent customer-specific facts, exact prices, exact options, exact repair parts, or exact pet conditions that are not present in the source data.
+- If information is missing, write naturally around confirmed facts instead of guessing.
+""".strip()
+
+CRM_SOURCE_FORMAT_GUIDANCE = {
+    ("sale", "blog"): """
+- Write this as a dealership-style vehicle delivery / purchase review blog post.
+- The tone should feel like a polished official delivery post, not a random personal diary.
+- Center the article around the registered vehicle info, color, trim, branch, and why the vehicle feels attractive or practical.
+- If photos include specific detail shots such as wheels, interior, grille, headlights, or delivery ribbon, explain those photos right below or near them.
+- If there are many photos, let the article feel photo-led with shorter paragraphs.
+- If there are fewer photos, add more readable explanation about model appeal, color/trim combination, option feel, and why the choice makes sense.
+- Use search only for stable, directly relevant vehicle facts such as broad model family context, body type, or generally known characteristics. Do not invent exact specs or options unless the CRM source explicitly mentions them.
+- End with a dealership-style closing that feels warm and professional, not overly promotional.
+""".strip(),
+    ("sale", "instagram"): """
+- Write this as an official vehicle delivery Instagram post.
+- The first line should clearly say what model was delivered or introduced.
+- Favor a representative delivery-photo tone over a long article.
+- Keep the post concise, readable, and warm, with short line breaks.
+- Mention key attractive points such as color, trim, seat combination, or why the customer chose the model when those facts are present.
+- If dealer or branch info is in the CRM source, it is acceptable to end with a short professional closing or contact cue.
+- Use search only for stable, directly relevant model-family facts. Do not invent exact specs, exact options, or customer-specific motivations.
+""".strip(),
+    ("service", "blog"): """
+- Write this as a repair/service work log style blog post for an auto service shop.
+- The flow should feel like: symptom or issue -> diagnosis -> work performed -> result or takeaway.
+- Use the repair details in the CRM source as the factual backbone.
+- If there are before/after or progress photos, explain what each stage shows near the related image.
+- The tone should be trustworthy, clear, and practical rather than emotional or overly salesy.
+- If the registered photos are plentiful, let the blog feel like a step-by-step repair record.
+- If the photos are limited, strengthen the explanation of the symptom, likely cause, work area, and outcome in a readable way without inventing facts.
+- Use search only for stable, directly relevant vehicle or repair context such as a broad explanation of the component or general symptom context. Never invent an exact diagnosis, part replacement, or cost breakdown that is not in the source.
+- Close with a practical maintenance or inspection takeaway when natural.
+""".strip(),
+    ("service", "instagram"): """
+- Write this as a concise automotive repair Instagram post.
+- Focus on what issue was seen, what area was repaired or restored, and how the result turned out.
+- The image sequence may feel like before/after or work-progress photos, so keep the text concise and visually supportive.
+- Mention the vehicle model and the repaired area early.
+- Keep the tone practical, confident, and shop-like, not like a long blog article.
+- Shop/location/contact style closing is acceptable if that fits the source tone.
+- Use search only for stable, directly relevant component or model context. Never invent exact repair details not present in the CRM source.
+""".strip(),
+    ("grooming", "blog"): """
+- Write this as a pet salon's own grooming blog post, not as a customer review diary.
+- The flow should feel like: pet introduction -> before condition or visit context -> today's grooming style or care focus -> after result -> care tip or warm closing.
+- If before/after photos are present, use them actively.
+- If photos show face shape, ear line, body length, paw trim, or other styling details, explain those points near the related images.
+- The tone should be warm, trustworthy, and salon-owner-like.
+- Do not write as if a customer is reviewing the salon. Write as if the salon is introducing today's grooming result.
+- If the breed or pet type is known, you may use search for broad and stable grooming-related facts such as coat or styling considerations. Do not invent medical claims, allergy claims, or pet personality details.
+- If photos are few, add more useful explanation about the styling point, coat management, home care, or grooming reason.
+""".strip(),
+    ("grooming", "instagram"): """
+- Write this as a pet grooming salon Instagram post.
+- The tone should feel cute, polished, and warm, but not childish or spammy.
+- Use the after photo as the emotional focal point, and use before/after comparison when available.
+- Mention today's grooming point such as face line, ear shape, body length, paw finish, or styling mood when those facts are supported by the source.
+- Keep the text concise with soft line breaks and a friendly salon voice.
+- If the breed is known, you may use search for broad and stable breed/grooming context, but do not invent medical or temperament claims.
+- End with a short warm line or simple CTA that fits an Instagram salon account.
+""".strip(),
+}
+
 
 def _build_generation_prompt(
     *,
@@ -150,13 +219,46 @@ def _build_generation_prompt(
     content_format: str,
     template_style: str,
     urls: list[str],
+    source_type: str | None = None,
+    enable_google_search: bool = False,
 ) -> str:
     url_lines = "\n".join(f"- {url}" for url in urls) if urls else "- none"
     blog_guidance = BLOG_TEMPLATE_GUIDANCE.get(template_style)
+    crm_source_guidance = CRM_SOURCE_FORMAT_GUIDANCE.get((source_type, content_format))
 
     prompt_sections = [
         f'Create a {content_format} article using the template style "{template_style}".',
     ]
+
+    if source_type:
+        prompt_sections.extend(
+            [
+                "",
+                "CRM generation guidance:",
+                CRM_GENERATION_GUIDANCE,
+                "",
+                f"Business source type: {source_type}",
+            ]
+        )
+        if crm_source_guidance:
+            prompt_sections.extend(
+                [
+                    "",
+                    "Source-specific writing guidance:",
+                    crm_source_guidance,
+                ]
+            )
+        if enable_google_search:
+            prompt_sections.extend(
+                [
+                    "",
+                    "Search usage guidance:",
+                    "- You may use Google Search only to fill small factual gaps with broad, stable, directly relevant facts.",
+                    "- Prefer facts such as model-family background, body type, general component context, or broad breed/grooming care context.",
+                    "- Never invent exact options, exact trim details, exact prices, exact repair work, or exact pet condition details unless they are already present in the CRM source.",
+                    "- If search results are unclear, conflicting, or not directly relevant, omit them instead of guessing.",
+                ]
+            )
 
     if content_format == "blog" and blog_guidance:
         prompt_sections.extend(
@@ -317,20 +419,30 @@ def generate_newsletter_content(
     template_style: str,
     urls: list[str],
     uploaded_files: list[Any],
+    source_type: str | None = None,
+    enable_google_search: bool = False,
 ) -> dict[str, Any]:
     prompt = _build_generation_prompt(
         instruction=instruction,
         content_format=content_format,
         template_style=template_style,
         urls=urls,
+        source_type=source_type,
+        enable_google_search=enable_google_search,
     )
+
+    tools: list[Any] = []
+    if urls:
+        tools.append({"url_context": {}})
+    if enable_google_search:
+        tools.append(types.Tool(google_search=types.GoogleSearch()))
 
     response = client.models.generate_content(
         model=MODEL_NAME,
         contents=[prompt, *uploaded_files],
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
-            tools=[{"url_context": {}}] if urls else None,
+            tools=tools or None,
         ),
     )
 

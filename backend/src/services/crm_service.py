@@ -27,6 +27,7 @@ from src.schemas.crm import (
     ServiceRegistrationListResponse,
     ServiceRegistrationResponse,
 )
+from src.services.content_generation_worker import enqueue_content_tasks
 from src.services.content_task_service import ensure_content_tasks
 from src.services.employee_link_service import sync_employee_user_link
 from src.services.s3_service import upload_newsletter_asset
@@ -384,6 +385,17 @@ def _serialize_created_tasks(tasks) -> list[CreatedTaskSummaryResponse]:
     ]
 
 
+def _enqueue_recoverable_tasks(tasks) -> None:
+    enqueue_content_tasks(
+        [
+            task.id
+            for task in tasks
+            if getattr(task, "article_id", None) is None
+            and getattr(task, "status", None) in {"pending", "failed"}
+        ]
+    )
+
+
 def _list_active_tasks_for_source(db: Session, source_type: str, source_id: UUID):
     from src.models.content_task import ContentTask
 
@@ -470,6 +482,7 @@ async def create_sales_registration(
     )
 
     db.commit()
+    _enqueue_recoverable_tasks(created_tasks)
     return get_sales_registration_detail(db=db, registration_id=registration.id)
 
 
@@ -616,7 +629,7 @@ async def update_sales_registration(
             )
         )
 
-    ensure_content_tasks(
+    updated_tasks = ensure_content_tasks(
         db=db,
         source_type="sale",
         source_id=registration.id,
@@ -624,6 +637,7 @@ async def update_sales_registration(
         requested_contents=requested_contents,
     )
     db.commit()
+    _enqueue_recoverable_tasks(updated_tasks)
     return get_sales_registration_detail(db=db, registration_id=registration.id)
 
 
@@ -667,7 +681,7 @@ async def create_service_registration(
             )
         )
 
-    ensure_content_tasks(
+    created_tasks = ensure_content_tasks(
         db=db,
         source_type="service",
         source_id=registration.id,
@@ -676,6 +690,7 @@ async def create_service_registration(
     )
 
     db.commit()
+    _enqueue_recoverable_tasks(created_tasks)
     return get_service_registration_detail(db=db, registration_id=registration.id)
 
 
@@ -825,7 +840,7 @@ async def update_service_registration(
             )
         )
 
-    ensure_content_tasks(
+    updated_tasks = ensure_content_tasks(
         db=db,
         source_type="service",
         source_id=registration.id,
@@ -833,6 +848,7 @@ async def update_service_registration(
         requested_contents=requested_contents,
     )
     db.commit()
+    _enqueue_recoverable_tasks(updated_tasks)
     return get_service_registration_detail(db=db, registration_id=registration.id)
 
 
@@ -878,7 +894,7 @@ async def create_grooming_registration(
             )
         )
 
-    ensure_content_tasks(
+    created_tasks = ensure_content_tasks(
         db=db,
         source_type="grooming",
         source_id=registration.id,
@@ -887,6 +903,7 @@ async def create_grooming_registration(
     )
 
     db.commit()
+    _enqueue_recoverable_tasks(created_tasks)
     return get_grooming_registration_detail(db=db, registration_id=registration.id)
 
 
@@ -1042,7 +1059,7 @@ async def update_grooming_registration(
             )
         )
 
-    ensure_content_tasks(
+    updated_tasks = ensure_content_tasks(
         db=db,
         source_type="grooming",
         source_id=registration.id,
@@ -1050,4 +1067,5 @@ async def update_grooming_registration(
         requested_contents=requested_contents,
     )
     db.commit()
+    _enqueue_recoverable_tasks(updated_tasks)
     return get_grooming_registration_detail(db=db, registration_id=registration.id)

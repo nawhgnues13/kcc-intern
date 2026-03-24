@@ -390,12 +390,14 @@ export function EditorPanel({
                   </div>
                 </div>
               ) : (
-                <div className="prose prose-slate max-w-none prose-headings:font-bold prose-h1:text-3xl prose-h1:mb-8 prose-h2:text-xl prose-h2:mt-8 prose-h2:mb-4 prose-p:text-slate-600 prose-p:leading-relaxed">
-                  <h1 className="text-center">{newsletterTitle}</h1>
+                <div className="mx-auto max-w-[760px] break-keep prose prose-slate max-w-none prose-headings:font-bold prose-headings:break-keep prose-h1:mb-8 prose-h1:text-[2.2rem] prose-h1:leading-tight prose-h2:mt-8 prose-h2:mb-4 prose-h2:text-xl prose-p:leading-relaxed prose-p:text-slate-600 prose-p:break-keep prose-li:break-keep prose-blockquote:break-keep [word-break:keep-all]">
+                  <h1 className="text-left break-keep leading-tight tracking-tight [word-break:keep-all]">
+                    {newsletterTitle}
+                  </h1>
                   
                   {/* Removed duplicate Hero Image block per user request */}
                   {/* Rendered Text Body */}
-                  <div className="markdown-content">
+                  <div className="markdown-content break-keep [word-break:keep-all]">
                     {/* Render the JSON document through Tiptap's HTML generator */}
                     <div dangerouslySetInnerHTML={{ __html: editor?.getHTML() || "" }} />
                   </div>

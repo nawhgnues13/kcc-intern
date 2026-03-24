@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models.article import Article
+from src.models.article_image import ArticleImage
 from src.models.content_task import ContentTask
 from src.models.grooming_registration import GroomingPhoto, GroomingRegistration
 from src.models.sales_registration import SalesPhoto, SalesRegistration
@@ -15,12 +16,22 @@ from src.schemas.crm import (
     ContentTaskDetailResponse,
     ContentTaskListItemResponse,
     ContentTaskListResponse,
+    ContentResultListItemResponse,
+    ContentResultListResponse,
 )
 from src.services.employee_link_service import get_user_for_employee
 
 ALLOWED_TASK_SOURCE_TYPES = {"sale", "service", "grooming"}
 ALLOWED_TASK_CONTENT_FORMATS = {"blog", "instagram", "newsletter"}
-ALLOWED_TASK_STATUSES = {"pending", "in_progress", "completed", "skipped"}
+ALLOWED_TASK_STATUSES = {"pending", "in_progress", "completed", "failed", "skipped"}
+DEFAULT_AUTO_REQUESTED_CONTENTS = [
+    {"content_format": "blog", "template_style": "blog_naver_basic"},
+    {"content_format": "instagram", "template_style": "instagram_default"},
+]
+DEFAULT_TEMPLATE_STYLES_BY_FORMAT = {
+    "blog": "blog_naver_basic",
+    "instagram": "instagram_default",
+}
 
 
 def _serialize_photo(
@@ -312,6 +323,75 @@ def load_source_bundle(db: Session, source_type: str, source_id: UUID) -> dict[s
     raise HTTPException(status_code=400, detail="Unsupported source type.")
 
 
+def _normalize_requested_contents(
+    requested_contents: list[dict[str, str | None]],
+) -> list[dict[str, str | None]]:
+    if not requested_contents:
+        return [item.copy() for item in DEFAULT_AUTO_REQUESTED_CONTENTS]
+
+    normalized_items: list[dict[str, str | None]] = []
+    for item in requested_contents:
+        content_format = (item.get("content_format") or "").strip().lower()
+        template_style = (item.get("template_style") or "").strip() or None
+        if not content_format:
+            continue
+
+        if not template_style:
+            template_style = DEFAULT_TEMPLATE_STYLES_BY_FORMAT.get(content_format)
+
+        normalized_items.append(
+            {
+                "content_format": content_format,
+                "template_style": template_style,
+            }
+        )
+
+    return normalized_items
+
+
+def _get_article_map(db: Session, article_ids: list[UUID]) -> dict[UUID, Article]:
+    unique_ids = list(dict.fromkeys(article_ids))
+    if not unique_ids:
+        return {}
+
+    articles = list(
+        db.scalars(
+            select(Article).where(
+                Article.id.in_(unique_ids),
+                Article.deleted_at.is_(None),
+            )
+        )
+    )
+    return {article.id: article for article in articles}
+
+
+def _get_article_thumbnail_map(db: Session, article_ids: list[UUID]) -> dict[UUID, str]:
+    unique_ids = list(dict.fromkeys(article_ids))
+    if not unique_ids:
+        return {}
+
+    images = list(
+        db.scalars(
+            select(ArticleImage)
+            .where(
+                ArticleImage.article_id.in_(unique_ids),
+                ArticleImage.deleted_at.is_(None),
+            )
+            .order_by(
+                ArticleImage.article_id.asc(),
+                ArticleImage.sort_order.asc(),
+                ArticleImage.created_at.asc(),
+            )
+        )
+    )
+
+    thumbnail_map: dict[UUID, str] = {}
+    for image in images:
+        if image.article_id not in thumbnail_map:
+            thumbnail_map[image.article_id] = image.image_url
+    return thumbnail_map
+
+
 def get_content_task(db: Session, task_id: UUID) -> ContentTask:
     task = db.scalar(
         select(ContentTask).where(
@@ -338,8 +418,9 @@ def ensure_content_tasks(
     linked_user = get_user_for_employee(db, assigned_employee_id)
     results: list[ContentTask] = []
     seen_formats: set[str] = set()
+    normalized_contents = _normalize_requested_contents(requested_contents)
 
-    for item in requested_contents:
+    for item in normalized_contents:
         content_format = (item.get("content_format") or "").strip().lower()
         template_style = (item.get("template_style") or "").strip() or None
 
@@ -459,6 +540,73 @@ def get_content_task_detail(*, db: Session, task_id: UUID) -> ContentTaskDetailR
     )
 
 
+def list_my_content_results(
+    *,
+    db: Session,
+    assigned_user_id: UUID,
+    content_format: str | None = None,
+    source_type: str | None = None,
+) -> ContentResultListResponse:
+    stmt = select(ContentTask).where(
+        ContentTask.deleted_at.is_(None),
+        ContentTask.assigned_user_id == assigned_user_id,
+        ContentTask.status == "completed",
+        ContentTask.article_id.is_not(None),
+    )
+    if content_format:
+        stmt = stmt.where(ContentTask.content_format == content_format)
+    if source_type:
+        stmt = stmt.where(ContentTask.source_type == source_type)
+
+    tasks = list(
+        db.scalars(
+            stmt.order_by(
+                ContentTask.completed_at.desc(),
+                ContentTask.created_at.desc(),
+            )
+        )
+    )
+
+    article_ids = [task.article_id for task in tasks if task.article_id is not None]
+    article_map = _get_article_map(db, article_ids)
+    article_thumbnail_map = _get_article_thumbnail_map(db, article_ids)
+
+    items: list[ContentResultListItemResponse] = []
+    for task in tasks:
+        if task.article_id is None:
+            continue
+        article = article_map.get(task.article_id)
+        if article is None:
+            continue
+
+        source_bundle = load_source_bundle(db, task.source_type, task.source_id)
+        source_detail = source_bundle["detail"]
+        items.append(
+            ContentResultListItemResponse(
+                task_id=task.id,
+                article_id=task.article_id,
+                article_title=article.title or source_bundle["title"],
+                source_type=task.source_type,
+                source_id=task.source_id,
+                assigned_employee_id=task.assigned_employee_id,
+                assigned_employee_name=source_bundle["assignedEmployeeName"],
+                assigned_user_id=task.assigned_user_id,
+                content_format=task.content_format,
+                template_style=task.template_style,
+                status=task.status,
+                customer_name=source_detail.get("customerName"),
+                summary=source_bundle["summary"],
+                thumbnail_url=article_thumbnail_map.get(task.article_id)
+                or source_bundle["thumbnailUrl"],
+                event_date=source_bundle["eventDate"],
+                created_at=task.created_at,
+                completed_at=task.completed_at,
+            )
+        )
+
+    return ContentResultListResponse(items=items)
+
+
 def update_content_task(
     *,
     db: Session,
@@ -498,6 +646,8 @@ def get_generation_context_for_task(*, db: Session, task_id: UUID) -> dict[str, 
             f"Content task source type: {task.source_type}\n"
             f"Requested content format: {task.content_format}\n"
             f"Template style: {task.template_style or ''}\n"
+            "Use the registered source data and registered real photos as the primary factual and visual basis.\n"
+            "Do not invent customer-specific details, repair details, pet conditions, or options that are not present.\n"
             "Use the following source data as the factual basis.\n\n"
             f"{source_bundle['sourceText']}"
         ),

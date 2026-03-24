@@ -361,6 +361,7 @@ def _build_instagram_platform_output(
     *,
     raw_value: Any,
     body_content: dict[str, Any],
+    fallback_image_urls: list[str] | None = None,
 ) -> dict[str, Any]:
     payload = raw_value if isinstance(raw_value, dict) else {}
 
@@ -373,6 +374,10 @@ def _build_instagram_platform_output(
     image_download_urls = _normalize_url_list(payload.get("imageDownloadUrls"))
     if not image_download_urls:
         image_download_urls = _extract_image_urls(body_content)
+    if not image_download_urls and fallback_image_urls:
+        image_download_urls = [
+            url for url in fallback_image_urls if isinstance(url, str) and url.startswith(("http://", "https://"))
+        ]
 
     return {
         "platform": "instagram",
@@ -380,6 +385,79 @@ def _build_instagram_platform_output(
         "hashtags": hashtags,
         "image_download_urls": image_download_urls,
     }
+
+
+def _materialize_task_source_images(
+    *,
+    body_content: dict[str, Any],
+    source_photos: list[dict[str, Any]],
+    append_remaining: bool = True,
+) -> list[str]:
+    warnings: list[str] = []
+    available_photos = [
+        photo for photo in source_photos
+        if isinstance(photo, dict)
+        and isinstance(photo.get("fileUrl"), str)
+        and photo.get("fileUrl", "").startswith(("http://", "https://"))
+    ]
+    if not available_photos:
+        return warnings
+
+    used_indexes: set[int] = set()
+    image_blocks = [
+        block
+        for block in body_content.get("content", [])
+        if isinstance(block, dict) and block.get("type") == "image"
+    ]
+
+    for block in image_blocks:
+        attrs = block.setdefault("attrs", {})
+        current_src = attrs.get("src")
+        if isinstance(current_src, str) and current_src.startswith(("http://", "https://")):
+            continue
+
+        next_index = next((idx for idx in range(len(available_photos)) if idx not in used_indexes), None)
+        if next_index is None:
+            warnings.append("Some image blocks were removed because there were no remaining CRM photos.")
+            attrs["src"] = ""
+            continue
+
+        photo = available_photos[next_index]
+        used_indexes.add(next_index)
+        attrs["src"] = photo["fileUrl"]
+        if not attrs.get("alt") and photo.get("photoDescription"):
+            attrs["alt"] = photo["photoDescription"]
+
+    if append_remaining:
+        remaining = [
+            available_photos[idx]
+            for idx in range(len(available_photos))
+            if idx not in used_indexes
+        ]
+        if remaining and not image_blocks:
+            body_content.setdefault("content", [])
+        for photo in remaining:
+            body_content["content"].append(
+                {
+                    "type": "image",
+                    "attrs": {
+                        "src": photo["fileUrl"],
+                        "alt": photo.get("photoDescription") or "",
+                    },
+                }
+            )
+
+    body_content["content"] = [
+        block
+        for block in body_content.get("content", [])
+        if block.get("type") != "image"
+        or (
+            isinstance((block.get("attrs") or {}).get("src"), str)
+            and (block.get("attrs") or {}).get("src")
+        )
+    ]
+
+    return warnings
 
 
 def _get_platform_output(article: Article) -> InstagramPlatformOutputResponse | None:
@@ -545,6 +623,8 @@ async def generate_newsletter(
     effective_template_style = template_style
     fallback_topic: str | None = None
     task: ContentTask | None = None
+    task_source_type: str | None = None
+    task_source_photos: list[dict[str, Any]] = []
 
     if content_task_id is not None:
         task = _get_content_task(db, content_task_id)
@@ -564,6 +644,8 @@ async def generate_newsletter(
         task_context = get_generation_context_for_task(db=db, task_id=content_task_id)
         effective_content_format = task.content_format
         effective_template_style = task.template_style or template_style
+        task_source_type = task.source_type
+        task_source_photos = task_context["source_bundle"]["detail"].get("photos", [])
         effective_instruction = (
             f"{task_context['instruction_prefix']}\n\n"
             f"Additional user instruction:\n{instruction}"
@@ -647,14 +729,23 @@ async def generate_newsletter(
         template_style=effective_template_style,
         urls=effective_urls,
         uploaded_files=gemini_files,
+        source_type=task_source_type,
+        enable_google_search=task_source_type in {"sale", "service", "grooming"},
     )
-    image_warnings = await _materialize_generated_images(
-        body_content=generated["bodyContent"],
-        article_title=generated.get("title"),
-        content_format=effective_content_format,
-        template_style=effective_template_style,
-        entity_key=entity_key,
-    )
+    if task_source_type is not None:
+        image_warnings = _materialize_task_source_images(
+            body_content=generated["bodyContent"],
+            source_photos=task_source_photos,
+            append_remaining=True,
+        )
+    else:
+        image_warnings = await _materialize_generated_images(
+            body_content=generated["bodyContent"],
+            article_title=generated.get("title"),
+            content_format=effective_content_format,
+            template_style=effective_template_style,
+            entity_key=entity_key,
+        )
 
     final_warnings = _finalize_warnings(
         generated["bodyContent"],
@@ -665,6 +756,7 @@ async def generate_newsletter(
         platform_output = _build_instagram_platform_output(
             raw_value=generated.get("platformOutput"),
             body_content=generated["bodyContent"],
+            fallback_image_urls=[photo.get("fileUrl") for photo in task_source_photos],
         )
 
     article = Article(

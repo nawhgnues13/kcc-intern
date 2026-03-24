@@ -12,6 +12,20 @@ interface BlogViewerProps {
 export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }: BlogViewerProps) {
   const [copied, setCopied] = useState(false);
 
+  const isRenderableImageSource = (src?: string) => {
+    const value = (src || "").trim();
+    if (!value) return false;
+    if (value === "undefined" || value === "null") return false;
+
+    return (
+      value.startsWith("http://") ||
+      value.startsWith("https://") ||
+      value.startsWith("data:image/") ||
+      value.startsWith("blob:") ||
+      value.startsWith("/")
+    );
+  };
+
   // Parse Tiptap JSON to Object
   const documentObj = useMemo(() => {
     if (!newsletterContent) return { type: "doc", content: [] };
@@ -42,6 +56,9 @@ export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }
       if (node.type === "image") {
         const alt = node.attrs?.alt || "image";
         const src = node.attrs?.src || "";
+        if (!isRenderableImageSource(src)) {
+          return alt ? `> 이미지 설명: ${alt}\n\n` : "";
+        }
         return `![${alt}](${src})\n\n`;
       }
       if (node.type === "bulletList") {
@@ -99,7 +116,13 @@ export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }
       if (node.type === "image") {
         const alt = node.attrs?.alt || "image";
         const src = node.attrs?.src || "";
-        return `<figure><img src="${src}" alt="${alt}" /></figure>${lineBreak}`;
+        if (!isRenderableImageSource(src)) {
+          return alt
+            ? `<div class="my-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">이미지 설명: ${alt}</div>${lineBreak}`
+            : "";
+        }
+
+        return `<figure><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></figure>${lineBreak}`;
       }
       if (node.type === "bulletList") {
         const lis = node.content?.map((li: any) => `<li>${processTextNodes(li.content[0]?.content)}</li>`).join("\n");
@@ -195,7 +218,7 @@ export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }
       <div className="flex-1 overflow-y-auto p-8 pt-24 bg-slate-100/50">
         <div className="max-w-4xl mx-auto w-full">
           {templateStyle === "blog_naver_basic" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 md:p-12 prose prose-slate max-w-none prose-img:rounded-xl prose-img:border prose-a:text-[#03c75a] prose-h1:text-center prose-h1:mb-12">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 md:p-12 break-keep prose prose-slate max-w-none prose-img:rounded-xl prose-img:border prose-a:text-[#03c75a] prose-headings:break-keep prose-h1:mb-10 prose-h1:text-left prose-h1:leading-tight prose-h2:break-keep prose-p:break-keep prose-li:break-keep prose-blockquote:break-keep [word-break:keep-all]">
               <div dangerouslySetInnerHTML={{ __html: generateHTML(documentObj) }} />
             </div>
           )}
@@ -212,7 +235,7 @@ export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }
                   homepage-preview.com
                 </div>
               </div>
-              <div className="p-8 md:p-12 prose prose-slate max-w-none prose-headings:font-bold prose-p:leading-relaxed prose-img:rounded-md">
+              <div className="p-8 md:p-12 break-keep prose prose-slate max-w-none prose-headings:font-bold prose-headings:break-keep prose-h1:text-left prose-h1:leading-tight prose-p:leading-relaxed prose-p:break-keep prose-li:break-keep prose-blockquote:break-keep prose-img:rounded-md [word-break:keep-all]">
                 <div dangerouslySetInnerHTML={{ __html: generateHTML(documentObj) }} />
               </div>
             </div>
@@ -224,7 +247,7 @@ export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }
                 <FileText className="w-5 h-5 text-slate-500" />
                 <span className="font-semibold text-slate-700 font-mono text-sm">README.md</span>
               </div>
-              <div className="p-8 md:p-12 prose prose-zinc max-w-none prose-a:text-blue-600 prose-blockquote:border-l-4 prose-blockquote:border-slate-300 prose-blockquote:bg-slate-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-img:rounded-lg">
+              <div className="p-8 md:p-12 break-keep prose prose-zinc max-w-none prose-a:text-blue-600 prose-headings:break-keep prose-h1:text-left prose-h1:leading-tight prose-p:break-keep prose-li:break-keep prose-blockquote:border-l-4 prose-blockquote:border-slate-300 prose-blockquote:bg-slate-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:break-keep prose-img:rounded-lg [word-break:keep-all]">
                 <div dangerouslySetInnerHTML={{ __html: generateHTML(documentObj) }} />
               </div>
             </div>

@@ -9,6 +9,7 @@ export function Sidebar() {
     { label: "새 콘텐츠 작성", path: "/dashboard", icon: <PenSquare className="w-5 h-5" /> },
     { label: "전체 기사", path: "/articles", icon: <BookOpen className="w-5 h-5" /> },
     { label: "작성 기록", path: "/history", icon: <Clock className="w-5 h-5" /> },
+    { label: "생성 결과", path: "/generation-results", icon: <Sparkles className="w-5 h-5" /> },
   ];
 
   const crmItems = [

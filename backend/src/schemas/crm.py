@@ -194,6 +194,34 @@ class ContentTaskListResponse(BaseModel):
     items: list[ContentTaskListItemResponse]
 
 
+class ContentResultListItemResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    task_id: UUID
+    article_id: UUID
+    article_title: Optional[str]
+    source_type: str
+    source_id: UUID
+    assigned_employee_id: UUID
+    assigned_employee_name: str
+    assigned_user_id: Optional[UUID]
+    content_format: str
+    template_style: Optional[str]
+    status: str
+    customer_name: Optional[str]
+    summary: str
+    thumbnail_url: Optional[str]
+    event_date: datetime
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+
+class ContentResultListResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    items: list[ContentResultListItemResponse]
+
+
 class ContentTaskDetailResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
