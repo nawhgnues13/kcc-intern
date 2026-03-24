@@ -5,27 +5,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% if newsletter_type == 'auto' %}KCC오토 위클리{% elif newsletter_type == 'kcc' %}KCC 회사 소식{% else %}IT 트렌드 위클리{% endif %}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9;">
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f1f5f9;">
   <tr>
     <td align="center" style="padding:32px 16px;">
 
       <!-- 컨테이너 -->
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <table width="680" cellpadding="0" cellspacing="0" border="0" style="max-width:680px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.10);">
 
-        <!-- 헤더 -->
+        <!-- 헤더 (KCC 모던형) -->
         <tr>
-          <td style="background-color:#2563EB;padding:32px 40px;text-align:center;">
-            <div style="color:#ffffff;font-size:13px;font-weight:500;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Weekly Newsletter</div>
-            <div style="color:#ffffff;font-size:28px;font-weight:700;letter-spacing:-0.5px;">{% if newsletter_type == 'auto' %}🚗 KCC오토 위클리{% elif newsletter_type == 'kcc' %}🏢 KCC 회사 소식{% else %}🚀 IT 트렌드 위클리{% endif %}</div>
-            <div style="color:#93c5fd;font-size:13px;margin-top:8px;">{{ content.generated_at[:10] }}</div>
+          <td style="background-color:#0f172a;padding:0;border-top:4px solid #dc2626;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <!-- 좌측: K 로고 + 브랜드명 -->
+                <td style="padding:28px 32px;" valign="middle">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td valign="middle" style="padding-right:12px;">
+                        <div style="width:40px;height:40px;background-color:#ffffff;border-radius:8px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:40px;font-size:20px;font-weight:900;color:#0f172a;">K</div>
+                      </td>
+                      <td valign="middle">
+                        <div style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:1px;">KCC정보통신</div>
+                        <div style="color:#f87171;font-size:10px;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-top:3px;">Technology &amp; Innovation</div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+                <!-- 우측: 날짜 -->
+                <td style="padding:28px 32px;text-align:right;" valign="middle">
+                  <div style="color:#94a3b8;font-size:12px;">{% if newsletter_type == 'kcc' %}Monthly Newsletter{% else %}Weekly Newsletter{% endif %}</div>
+                  <div style="color:#94a3b8;font-size:12px;margin-top:4px;font-family:monospace;">{{ formatted_date }}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- 뉴스레터 제목 -->
+        <tr>
+          <td style="padding:36px 40px 0;text-align:center;">
+            <h1 style="margin:0;color:#1e293b;font-size:30px;font-weight:800;line-height:1.3;letter-spacing:-0.5px;">{% if newsletter_type == 'auto' %}KCC오토 위클리{% elif newsletter_type == 'kcc' %}KCC 회사 소식{% else %}IT 트렌드 위클리{% endif %}</h1>
+            <div style="width:40px;height:3px;background-color:#dc2626;margin:16px auto 0;border-radius:2px;"></div>
           </td>
         </tr>
 
         <!-- 인트로 -->
         <tr>
-          <td style="padding:32px 40px 24px;border-bottom:1px solid #e5e7eb;">
-            <p style="margin:0;color:#374151;font-size:16px;line-height:1.7;">{{ content.intro }}</p>
+          <td style="padding:24px 40px 28px;border-bottom:1px solid #e2e8f0;">
+            <p style="margin:0;color:#475569;font-size:16px;line-height:1.625;">{{ content.intro }}</p>
           </td>
         </tr>
 
@@ -33,45 +61,56 @@
         {% for article in content.articles %}
         {% set img = images[loop.index0] if images|length > loop.index0 else none %}
         <tr>
-          <td style="padding:32px 40px;{% if not loop.last %}border-bottom:1px solid #e5e7eb;{% endif %}">
+          <td style="padding:32px 40px;{% if not loop.last %}border-bottom:1px solid #e2e8f0;{% endif %}">
 
             <!-- 카테고리 태그 -->
-            <div style="margin-bottom:12px;">
-              <span style="display:inline-block;background-color:#eff6ff;color:#2563EB;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:4px 10px;border-radius:20px;">{{ article.category }}</span>
+            <div style="margin-bottom:14px;">
+              <span style="display:inline-block;background-color:#fef2f2;color:#dc2626;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 12px;border-radius:20px;">{{ article.category }}</span>
             </div>
 
             <!-- 이미지 -->
             {% if img and img.type == 'og' and img.url %}
-            <div style="margin-bottom:16px;">
-              <img src="{{ img.url }}" alt="{{ article.headline }}" width="520" style="width:100%;max-width:520px;height:auto;border-radius:8px;display:block;" />
+            <div style="margin-bottom:18px;">
+              <img src="{{ img.url }}" alt="{{ article.headline }}" width="600" style="width:100%;max-width:600px;height:338px;object-fit:cover;border-radius:8px;display:block;" />
             </div>
             {% elif img and img.type == 'generated' and img.file_path %}
-            <div style="margin-bottom:16px;">
-              <img src="cid:article_{{ loop.index0 }}" alt="{{ article.headline }}" width="520" style="width:100%;max-width:520px;height:auto;border-radius:8px;display:block;" />
+            <div style="margin-bottom:18px;">
+              <img src="cid:article_{{ loop.index0 }}" alt="{{ article.headline }}" width="600" style="width:100%;max-width:600px;height:338px;object-fit:cover;border-radius:8px;display:block;" />
             </div>
             {% endif %}
 
             <!-- 헤드라인 -->
-            <h2 style="margin:0 0 12px;color:#111827;font-size:20px;font-weight:700;line-height:1.4;">{{ article.headline }}</h2>
+            <h2 style="margin:0 0 12px;color:#1e293b;font-size:20px;font-weight:700;line-height:1.4;">{{ article.headline }}</h2>
 
             <!-- 한줄 요약 -->
-            <p style="margin:0 0 12px;color:#6b7280;font-size:13px;font-style:italic;border-left:3px solid #2563EB;padding-left:10px;">{{ article.summary }}</p>
+            <p style="margin:0 0 14px;color:#64748b;font-size:14px;font-style:italic;border-left:3px solid #dc2626;padding-left:10px;">{{ article.summary }}</p>
 
             <!-- 본문 -->
-            <p style="margin:0 0 20px;color:#374151;font-size:15px;line-height:1.75;">{{ article.body }}</p>
+            <p style="margin:0 0 22px;color:#475569;font-size:16px;line-height:1.625;">{{ article.body }}</p>
 
             <!-- 원문 보기 버튼 -->
-            <a href="{{ article.original_link }}" target="_blank" style="display:inline-block;background-color:#2563EB;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 20px;border-radius:6px;">원문 보기 →</a>
+            <a href="{{ article.original_link }}" target="_blank" style="display:inline-block;background-color:#0f172a;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 22px;border-radius:6px;border:1px solid #1e293b;">원문 보기 →</a>
 
           </td>
         </tr>
         {% endfor %}
 
-        <!-- 푸터 -->
+        <!-- 푸터 (KCC 모던형) -->
         <tr>
-          <td style="background-color:#f9fafb;padding:24px 40px;text-align:center;border-top:1px solid #e5e7eb;">
-            <p style="margin:0 0 8px;color:#9ca3af;font-size:12px;">이 뉴스레터는 AI가 자동으로 수집·작성한 IT 트렌드 정보입니다.</p>
-            <p style="margin:0;color:#9ca3af;font-size:12px;">수신을 원치 않으시면 관리자에게 문의해주세요.</p>
+          <td style="background-color:#f8fafc;padding:28px 40px;text-align:center;border-top:1px solid #e2e8f0;">
+            <p style="margin:0 0 6px;color:#64748b;font-size:12px;">© {{ formatted_date[:4] }} KCC Information &amp; Communication Co., Ltd. All rights reserved.</p>
+            <p style="margin:0 0 16px;color:#94a3b8;font-size:11px;">서울시 용산구 청파로 61길 5 6F~8F | 대표전화 02-6090-7800</p>
+            <table cellpadding="0" cellspacing="0" border="0" align="center">
+              <tr>
+                <td style="padding:0 10px;">
+                  <a href="#" style="color:#dc2626;font-size:12px;text-decoration:none;">회사소개</a>
+                </td>
+                <td style="color:#e2e8f0;font-size:12px;">|</td>
+                <td style="padding:0 10px;">
+                  <a href="#" style="color:#dc2626;font-size:12px;text-decoration:none;">개인정보처리방침</a>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
 

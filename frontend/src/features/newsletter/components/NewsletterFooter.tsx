@@ -5,7 +5,7 @@ export function NewsletterFooter({ type }: { type: string }) {
     return (
       <div className="bg-slate-50 border-t border-slate-200 p-8 text-center text-sm text-slate-500">
         <p>© {new Date().getFullYear()} KCC Information & Communication Co., Ltd. All rights reserved.</p>
-        <p className="mt-2 text-xs text-slate-400">서울특별시 강서구 양천로 583 우림블루나인비즈니스센터 | 대표전화 02-2000-0000</p>
+        <p className="mt-2 text-xs text-slate-400">서울시 용산구 청파로 61길 5 6F~8F | 대표전화 02-6090-7800</p>
         <div className="flex justify-center gap-4 mt-4 text-red-600">
           <a href="#" className="hover:underline">회사소개</a>
           <a href="#" className="hover:underline">개인정보처리방침</a>
