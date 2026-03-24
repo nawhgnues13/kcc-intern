@@ -16,6 +16,7 @@ from src.models.user import User
 from src.schemas.newsletter import (
     ArticleAIMessageResponse,
     ArticleSourceResponse,
+    InstagramPlatformOutputResponse,
     NewsletterDeleteResponse,
     NewsletterDetailResponse,
     NewsletterGenerateResponse,
@@ -36,6 +37,13 @@ from src.services.image_service import generate_image
 from src.services.s3_service import upload_newsletter_asset
 
 logger = logging.getLogger(__name__)
+
+BLOG_RENDER_MODES = {
+    "blog_naver_basic": "naver_copy",
+    "blog_html": "html",
+    "blog_markdown": "markdown",
+}
+INSTAGRAM_TEMPLATE_STYLE = "instagram_default"
 
 
 def _get_user(db: Session, user_id: UUID) -> User:
@@ -285,6 +293,99 @@ def _finalize_warnings(body_content: dict[str, Any], warnings: list[str]) -> lis
     return finalized
 
 
+def _extract_instagram_post_text(body_content: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for block in body_content.get("content", []):
+        if block.get("type") not in {"heading", "paragraph", "quote"}:
+            continue
+
+        text = _flatten_text_content(block)
+        if text:
+            lines.append(text)
+
+    normalized = "\n\n".join(line.strip() for line in lines if line.strip()).strip()
+    return normalized
+
+
+def _normalize_instagram_hashtags(raw_value: Any) -> list[str]:
+    candidates: list[str] = []
+
+    if isinstance(raw_value, list):
+        for item in raw_value:
+            if isinstance(item, str):
+                candidates.append(item)
+    elif isinstance(raw_value, str):
+        candidates.extend(raw_value.replace(",", " ").split())
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        cleaned = candidate.strip()
+        if not cleaned:
+            continue
+        if not cleaned.startswith("#"):
+            cleaned = f"#{cleaned.lstrip('#')}"
+        lowered = cleaned.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        normalized.append(cleaned)
+
+    return normalized
+
+
+def _normalize_url_list(raw_value: Any) -> list[str]:
+    if not isinstance(raw_value, list):
+        return []
+
+    normalized: list[str] = []
+    for item in raw_value:
+        if not isinstance(item, str):
+            continue
+        url = item.strip()
+        if url.startswith(("http://", "https://")):
+            normalized.append(url)
+    return normalized
+
+
+def _build_instagram_platform_output(
+    *,
+    raw_value: Any,
+    body_content: dict[str, Any],
+) -> dict[str, Any]:
+    payload = raw_value if isinstance(raw_value, dict) else {}
+
+    post_text = payload.get("postText")
+    if not isinstance(post_text, str) or not post_text.strip():
+        post_text = _extract_instagram_post_text(body_content)
+    post_text = post_text.strip()
+
+    hashtags = _normalize_instagram_hashtags(payload.get("hashtags"))
+    image_download_urls = _normalize_url_list(payload.get("imageDownloadUrls"))
+    if not image_download_urls:
+        image_download_urls = _extract_image_urls(body_content)
+
+    return {
+        "platform": "instagram",
+        "post_text": post_text,
+        "hashtags": hashtags,
+        "image_download_urls": image_download_urls,
+    }
+
+
+def _get_platform_output(article: Article) -> InstagramPlatformOutputResponse | None:
+    meta = article.generation_meta or {}
+    raw_output = meta.get("platform_output")
+    if not isinstance(raw_output, dict):
+        return None
+
+    try:
+        return InstagramPlatformOutputResponse.model_validate(raw_output)
+    except Exception:
+        logger.exception("Failed to parse stored platform_output for article %s", article.id)
+        return None
+
+
 def _build_image_prompt(
     *,
     article_title: str | None,
@@ -292,25 +393,46 @@ def _build_image_prompt(
     template_style: str,
     alt_text: str | None,
 ) -> str:
-    def _to_ascii_hint(value: str | None, fallback: str) -> str:
+    def _normalize_hint(value: str | None, fallback: str) -> str:
         if not value:
             return fallback
 
-        ascii_only = value.encode("ascii", "ignore").decode("ascii")
-        normalized = " ".join(ascii_only.split())
+        normalized = " ".join(str(value).split())
         return normalized or fallback
 
-    safe_title = _to_ascii_hint(article_title, "Untitled article")
-    safe_template_style = _to_ascii_hint(template_style, "clean editorial")
-    safe_description = _to_ascii_hint(alt_text, "editorial hero image for the article")
+    safe_title = _normalize_hint(article_title, "Untitled article")
+    safe_template_style = _normalize_hint(template_style, "clean editorial")
+    safe_description = _normalize_hint(alt_text, "realistic scene related to the article")
+
+    format_hint = "realistic editorial photo for a business newsletter"
+    if content_format == "blog":
+        format_hint = "realistic editorial photo for a blog post"
+    elif content_format == "instagram":
+        format_hint = "realistic social-media photo for an Instagram post"
+
     return (
-        f"Create a polished editorial illustration for a {content_format} article. "
+        f"Create a realistic photo-style image for a {content_format} post. "
+        f"Format direction: {format_hint}. "
         f"Template style hint: {safe_template_style}. "
-        f"Article title hint: {safe_title}. "
-        f"Image brief: {safe_description}. "
-        "Use a clean modern newsletter aesthetic, 16:9 composition. "
-        "Do not render any visible text, letters, numbers, Hangul, logos, signage, UI labels, or captions."
+        f"Article title or subject: {safe_title}. "
+        f"Scene brief: {safe_description}. "
+        "The image must look like a believable real photograph captured with a camera, "
+        "not an illustration, concept art, CGI render, 3D artwork, or poster. "
+        "Prefer natural lighting, realistic materials, practical composition, and an authentic real-world setting. "
+        "Avoid futuristic, sci-fi, fantasy, cyberpunk, surreal, glossy concept-art, or exaggerated neon aesthetics. "
+        "Avoid artificial AI-looking faces, distorted hands, plastic skin, unrealistic reflections, and staged promotional poster style. "
+        "Do not render visible text, letters, numbers, Hangul, logos, brand marks, signage, UI labels, or captions in the image. "
+        "If the scene would normally contain text, keep it out of frame or unreadable. "
+        "Use a clean, brand-safe, professional photographic look."
     )
+
+
+def _resolve_render_mode(content_format: str, template_style: str) -> str:
+    if content_format == "blog":
+        return BLOG_RENDER_MODES.get(template_style, "internal")
+    if content_format == "instagram" and template_style == INSTAGRAM_TEMPLATE_STYLE:
+        return "instagram_post"
+    return "internal"
 
 
 async def _materialize_generated_images(
@@ -529,6 +651,12 @@ async def generate_newsletter(
         generated["bodyContent"],
         [*generated.get("warnings", []), *image_warnings],
     )
+    platform_output: dict[str, Any] | None = None
+    if effective_content_format == "instagram":
+        platform_output = _build_instagram_platform_output(
+            raw_value=generated.get("platformOutput"),
+            body_content=generated["bodyContent"],
+        )
 
     article = Article(
         content_format=effective_content_format,
@@ -542,6 +670,12 @@ async def generate_newsletter(
             "url_count": len(urls),
             "file_count": len(files),
             "content_task_id": str(content_task_id) if content_task_id else None,
+            "prompt_profile": effective_template_style,
+            "render_mode": _resolve_render_mode(
+                effective_content_format,
+                effective_template_style,
+            ),
+            "platform_output": platform_output,
             "warnings": final_warnings,
         },
         author_user_id=user.id,
@@ -602,6 +736,9 @@ async def generate_newsletter(
             ArticleAIMessageResponse.model_validate(assistant_message),
         ],
         warnings=final_warnings,
+        platform_output=InstagramPlatformOutputResponse.model_validate(platform_output)
+        if platform_output
+        else None,
     )
 
 
@@ -682,6 +819,7 @@ def get_newsletter_detail(*, db: Session, article_id: UUID) -> NewsletterDetailR
         messages=[ArticleAIMessageResponse.model_validate(message) for message in messages],
         created_at=article.created_at,
         updated_at=article.updated_at,
+        platform_output=_get_platform_output(article),
     )
 
 
@@ -767,10 +905,18 @@ async def assistant_edit(
     article.title = result.get("title") or article.title
     article.topic = result.get("topic")
     article.body_content = result["bodyContent"]
-    article.generation_meta = {
+    updated_generation_meta = {
         **(article.generation_meta or {}),
         "last_edit_message": message,
         "last_edit_model": "gemini-2.5-flash",
+    }
+    if article.content_format == "instagram":
+        updated_generation_meta["platform_output"] = _build_instagram_platform_output(
+            raw_value=result.get("platformOutput"),
+            body_content=result["bodyContent"],
+        )
+    article.generation_meta = {
+        **updated_generation_meta,
     }
 
     assistant_message = ArticleAIMessage(
@@ -794,6 +940,8 @@ def save_newsletter(
     article_id: UUID,
     title: str | None,
     body_content: dict[str, Any],
+    content_format: str | None = None,
+    template_style: str | None = None,
 ) -> NewsletterSaveResponse:
     article = _get_article(db, article_id)
     if _has_inline_image_data(body_content):
@@ -803,10 +951,20 @@ def save_newsletter(
         )
     article.title = title
     article.body_content = body_content
-    article.generation_meta = {
-        **(article.generation_meta or {}),
-        "last_manual_save": datetime.now().isoformat(),
-    }
+    if content_format:
+        article.content_format = content_format
+    if template_style:
+        article.template_style = template_style
+
+    meta = article.generation_meta or {}
+    meta["last_manual_save"] = datetime.now().isoformat()
+    if article.content_format == "instagram":
+        meta["platform_output"] = _build_instagram_platform_output(
+            raw_value=meta.get("platform_output"),
+            body_content=body_content,
+        )
+    article.generation_meta = meta
+
     _sync_article_images(db, article.id, body_content)
     db.commit()
     db.refresh(article)

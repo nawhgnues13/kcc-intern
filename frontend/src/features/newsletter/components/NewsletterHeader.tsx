@@ -1,7 +1,7 @@
 export function NewsletterHeader({ type, title }: { type: string, title?: string }) {
   if (type === "없음") return null;
   
-  if (type === "KCC 모던형") {
+  if (type === "KCC 모던형" || type === "newsletter_kcc_modern") {
     return (
       <div className="bg-[#0f172a] text-white p-8 flex items-center justify-between border-t-4 border-red-600">
         <div className="flex items-center gap-3">
@@ -19,7 +19,7 @@ export function NewsletterHeader({ type, title }: { type: string, title?: string
     );
   }
 
-  if (type === "KCC 창의형") {
+  if (type === "KCC 창의형" || type === "newsletter_kcc_creative") {
     return (
       <div className="bg-gradient-to-r from-[#0033a0] via-indigo-600 to-[#e3000f] p-1">
         <div className="bg-white p-6 text-center">
@@ -30,7 +30,7 @@ export function NewsletterHeader({ type, title }: { type: string, title?: string
     );
   }
 
-  if (type === "KCC 미니멀형") {
+  if (type === "KCC 미니멀형" || type === "newsletter_kcc_minimal") {
     return (
       <div className="border-b-2 border-slate-900 p-8 pb-4 flex justify-between items-end">
         <div className="text-2xl font-serif font-bold text-slate-900 tracking-tight">KCC Newsletter.</div>
@@ -39,7 +39,7 @@ export function NewsletterHeader({ type, title }: { type: string, title?: string
     );
   }
 
-  if (type === "KCC 기존형") {
+  if (type === "KCC 기존형" || type === "newsletter_kcc_classic") {
     const today = new Date();
     const year = today.getFullYear();
     const month = today.getMonth() + 1;

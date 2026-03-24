@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { motion } from "motion/react";
 import { LayoutTemplate, BoxSelect, Loader2, Sparkles } from "lucide-react";
 import { SelectDropdown } from "../../../components/shared/SelectDropdown";
@@ -25,6 +26,29 @@ export function GenerationPrompt({
   handleGenerate,
   onPasteImage
 }: GenerationPromptProps) {
+  
+  const NEWSLETTER_OPTIONS = [
+    { label: "KCC 모던형", value: "newsletter_kcc_modern" },
+    { label: "KCC 창의형", value: "newsletter_kcc_creative" },
+    { label: "KCC 미니멀형", value: "newsletter_kcc_minimal" },
+    { label: "KCC 기존형", value: "newsletter_kcc_classic" }
+  ];
+
+  const BLOG_OPTIONS = [
+    { label: "기본형(네이버)", value: "blog_naver_basic" },
+    { label: "HTML형", value: "blog_html" },
+    { label: "Markdown형", value: "blog_markdown" }
+  ];
+
+  // Auto-switch template option matching the selected format
+  useEffect(() => {
+    if (template === "뉴스레터" && !NEWSLETTER_OPTIONS.some(o => o.value === headerFooter)) {
+      setHeaderFooter("newsletter_kcc_modern");
+    } else if (template === "블로그" && !BLOG_OPTIONS.some(o => o.value === headerFooter)) {
+      setHeaderFooter("blog_naver_basic");
+    }
+  }, [template, headerFooter, setHeaderFooter]);
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
@@ -62,13 +86,15 @@ export function GenerationPrompt({
             options={["뉴스레터", "인스타그램", "블로그"]} 
             onChange={setTemplate} 
           />
-          <SelectDropdown 
-            icon={<BoxSelect className="w-4 h-4 text-emerald-500" />}
-            label="옵션"
-            value={headerFooter} 
-            options={["KCC 모던형", "KCC 창의형", "KCC 미니멀형", "KCC 기존형"]}  
-            onChange={setHeaderFooter} 
-          />
+          {template !== "인스타그램" && (
+            <SelectDropdown 
+              icon={<BoxSelect className="w-4 h-4 text-emerald-500" />}
+              label="옵션"
+              value={headerFooter} 
+              options={template === "블로그" ? BLOG_OPTIONS : NEWSLETTER_OPTIONS}  
+              onChange={setHeaderFooter} 
+            />
+          )}
         </div>
         
         <button

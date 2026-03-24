@@ -47,6 +47,15 @@ class ArticleResponse(BaseModel):
     updated_at: datetime
 
 
+class InstagramPlatformOutputResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    platform: str
+    post_text: str
+    hashtags: list[str]
+    image_download_urls: list[str]
+
+
 class NewsletterGenerateResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
@@ -61,6 +70,7 @@ class NewsletterGenerateResponse(BaseModel):
     sources: list[ArticleSourceResponse]
     messages: list[ArticleAIMessageResponse]
     warnings: list[str]
+    platform_output: Optional[InstagramPlatformOutputResponse] = None
 
 
 class NewsletterListItemResponse(BaseModel):
@@ -123,6 +133,7 @@ class NewsletterDetailResponse(BaseModel):
     messages: list[ArticleAIMessageResponse]
     created_at: datetime
     updated_at: datetime
+    platform_output: Optional[InstagramPlatformOutputResponse] = None
 
 
 class NewsletterMessagesResponse(BaseModel):
@@ -137,6 +148,8 @@ class NewsletterSaveRequest(BaseModel):
 
     title: Optional[str] = Field(default=None, max_length=200)
     body_content: dict[str, Any]
+    content_format: Optional[str] = None
+    template_style: Optional[str] = None
 
 
 class NewsletterSaveResponse(BaseModel):
