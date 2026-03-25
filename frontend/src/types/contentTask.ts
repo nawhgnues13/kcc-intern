@@ -47,3 +47,21 @@ export interface ContentTaskItem {
 export interface ContentTaskListResponse {
   items: ContentTaskItem[];
 }
+
+export interface InstagramPublishInfo {
+  status: string;
+  attemptedAt: string;
+  publishedAt: string | null;
+  publishedExternalId: string | null;
+  publishedPermalink: string | null;
+  imageCount: number;
+  hostUrl: string | null;
+  igUserId: string | null;
+  error: string | null;
+}
+
+export interface InstagramPublishResponse {
+  taskId: string;
+  articleId: string;
+  publishInfo: InstagramPublishInfo;
+}

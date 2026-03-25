@@ -4,7 +4,7 @@ export interface CrmPhoto {
   photoId: string;
   fileUrl: string;
   sortOrder: number;
-  description?: string;
+  photoDescription?: string;
 }
 
 export interface SalesRegistration {
@@ -68,7 +68,7 @@ const createCrmFormData = (
   files: File[], 
   photoDescriptions?: string[],
   keepPhotoIds?: string[],
-  existingPhotoDescriptions?: string[]
+  existingPhotoDescriptions?: Record<string, string>
 ) => {
   const formData = new FormData();
   
@@ -95,7 +95,7 @@ const createCrmFormData = (
   }
   
   // append existing_photo_descriptions if given
-  if (existingPhotoDescriptions && existingPhotoDescriptions.length > 0) {
+  if (existingPhotoDescriptions && Object.keys(existingPhotoDescriptions).length > 0) {
     formData.append("existing_photo_descriptions", JSON.stringify(existingPhotoDescriptions));
   }
 
@@ -114,7 +114,7 @@ export const crmService = {
   createSalesRegistration: async (data: Record<string, any>, files: File[], desc?: string[]): Promise<SalesRegistration> => {
     return apiClient.post('/api/crm/sales-registrations', createCrmFormData(data, files, desc));
   },
-  updateSalesRegistration: async (id: string, data: Record<string, any>, files: File[], desc: string[], keepPhotoIds: string[], extDesc: string[]): Promise<SalesRegistration> => {
+  updateSalesRegistration: async (id: string, data: Record<string, any>, files: File[], desc: string[], keepPhotoIds: string[], extDesc: Record<string, string>): Promise<SalesRegistration> => {
     return apiClient.put(`/api/crm/sales-registrations/${id}`, createCrmFormData(data, files, desc, keepPhotoIds, extDesc));
   },
   deleteSalesRegistration: async (id: string): Promise<void> => {
@@ -129,7 +129,7 @@ export const crmService = {
   createServiceRegistration: async (data: Record<string, any>, files: File[], desc?: string[]): Promise<ServiceRegistration> => {
     return apiClient.post('/api/crm/service-registrations', createCrmFormData(data, files, desc));
   },
-  updateServiceRegistration: async (id: string, data: Record<string, any>, files: File[], desc: string[], keepPhotoIds: string[], extDesc: string[]): Promise<ServiceRegistration> => {
+  updateServiceRegistration: async (id: string, data: Record<string, any>, files: File[], desc: string[], keepPhotoIds: string[], extDesc: Record<string, string>): Promise<ServiceRegistration> => {
     return apiClient.put(`/api/crm/service-registrations/${id}`, createCrmFormData(data, files, desc, keepPhotoIds, extDesc));
   },
   deleteServiceRegistration: async (id: string): Promise<void> => {
@@ -144,7 +144,7 @@ export const crmService = {
   createGroomingRegistration: async (data: Record<string, any>, files: File[], desc?: string[]): Promise<GroomingRegistration> => {
     return apiClient.post('/api/crm/grooming-registrations', createCrmFormData(data, files, desc));
   },
-  updateGroomingRegistration: async (id: string, data: Record<string, any>, files: File[], desc: string[], keepPhotoIds: string[], extDesc: string[]): Promise<GroomingRegistration> => {
+  updateGroomingRegistration: async (id: string, data: Record<string, any>, files: File[], desc: string[], keepPhotoIds: string[], extDesc: Record<string, string>): Promise<GroomingRegistration> => {
     return apiClient.put(`/api/crm/grooming-registrations/${id}`, createCrmFormData(data, files, desc, keepPhotoIds, extDesc));
   },
   deleteGroomingRegistration: async (id: string): Promise<void> => {

@@ -12,6 +12,13 @@ interface BlogViewerProps {
 export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }: BlogViewerProps) {
   const [copied, setCopied] = useState(false);
 
+  const toDisplayImageUrl = (src: string) => {
+    if (src.startsWith("http://") || src.startsWith("https://")) {
+      return `/api/utils/download-image?url=${encodeURIComponent(src)}&download=false`;
+    }
+    return src;
+  };
+
   const isRenderableImageSource = (src?: string) => {
     const value = (src || "").trim();
     if (!value) return false;
@@ -122,7 +129,7 @@ export function BlogViewer({ newsletterTitle, newsletterContent, templateStyle }
             : "";
         }
 
-        return `<figure><img src="${src}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer" /></figure>${lineBreak}`;
+        return `<figure><img src="${toDisplayImageUrl(src)}" alt="${alt}" loading="lazy" /></figure>${lineBreak}`;
       }
       if (node.type === "bulletList") {
         const lis = node.content?.map((li: any) => `<li>${processTextNodes(li.content[0]?.content)}</li>`).join("\n");

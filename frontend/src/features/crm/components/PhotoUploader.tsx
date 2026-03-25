@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Upload, X, ImageIcon } from "lucide-react";
 import { CrmPhoto } from "../../../services/api/crmService";
 
@@ -30,6 +30,12 @@ export function PhotoUploader({
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Track kept existing photos by ID
   const [keptIds, setKeptIds] = useState<string[]>(existingPhotos.map(p => p.photoId));
+
+  useEffect(() => {
+    const nextIds = existingPhotos.map((photo) => photo.photoId);
+    setKeptIds(nextIds);
+    onKeepPhotosChange(nextIds);
+  }, [existingPhotos, onKeepPhotosChange]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {

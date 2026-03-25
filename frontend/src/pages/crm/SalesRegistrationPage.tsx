@@ -52,7 +52,7 @@ export function SalesRegistrationPage() {
       setKeepPhotoIds(item.photos.map(p => p.photoId));
       
       const exDesc: Record<string, string> = {};
-      item.photos.forEach(p => exDesc[p.photoId] = p.description || "");
+      item.photos.forEach(p => exDesc[p.photoId] = p.photoDescription || "");
       setExistingDescriptions(exDesc);
     } else {
       setEditingItem(null);
@@ -79,7 +79,9 @@ export function SalesRegistrationPage() {
         submissionData.sale_date += ":00";
       }
 
-      const existingDescToSubmit = keepPhotoIds.map(id => existingDescriptions[id] || "");
+      const existingDescToSubmit = Object.fromEntries(
+        keepPhotoIds.map((id) => [id, existingDescriptions[id] || ""])
+      );
 
       if (editingItem) {
         await crmService.updateSalesRegistration(

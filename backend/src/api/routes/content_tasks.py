@@ -10,12 +10,14 @@ from src.schemas.crm import (
     ContentTaskListResponse,
     ContentTaskUpdateRequest,
 )
+from src.schemas.newsletter import InstagramPublishRequest, InstagramPublishResponse
 from src.services.content_task_service import (
     get_content_task_detail,
     list_content_tasks,
     list_my_content_results,
     update_content_task,
 )
+from src.services.instagram_publish_service import publish_instagram_content_task
 
 router = APIRouter(prefix="/api/content-tasks", tags=["content-tasks"])
 
@@ -68,4 +70,17 @@ async def update_content_task_route(
         task_id=task_id,
         status=payload.status,
         article_id=payload.article_id,
+    )
+
+
+@router.post("/{task_id}/publish-instagram", response_model=InstagramPublishResponse)
+async def publish_instagram_content_task_route(
+    task_id: UUID,
+    payload: InstagramPublishRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    return await publish_instagram_content_task(
+        db=db,
+        task_id=task_id,
+        payload=payload or InstagramPublishRequest(),
     )

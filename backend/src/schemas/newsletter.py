@@ -56,6 +56,38 @@ class InstagramPlatformOutputResponse(BaseModel):
     image_download_urls: list[str]
 
 
+class InstagramPublishInfoResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    status: str
+    attempted_at: datetime
+    published_at: Optional[datetime] = None
+    published_external_id: Optional[str] = None
+    published_permalink: Optional[str] = None
+    image_count: int
+    host_url: Optional[str] = None
+    ig_user_id: Optional[str] = None
+    error: Optional[str] = None
+
+
+class InstagramPublishRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    access_token: Optional[str] = None
+    ig_user_id: Optional[str] = None
+    api_version: Optional[str] = None
+    host_url: Optional[str] = None
+    force: bool = False
+
+
+class InstagramPublishResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    task_id: UUID
+    article_id: UUID
+    publish_info: InstagramPublishInfoResponse
+
+
 class NewsletterGenerateResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
@@ -71,6 +103,7 @@ class NewsletterGenerateResponse(BaseModel):
     messages: list[ArticleAIMessageResponse]
     warnings: list[str]
     platform_output: Optional[InstagramPlatformOutputResponse] = None
+    instagram_publish: Optional[InstagramPublishInfoResponse] = None
 
 
 class NewsletterListItemResponse(BaseModel):
@@ -134,6 +167,7 @@ class NewsletterDetailResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     platform_output: Optional[InstagramPlatformOutputResponse] = None
+    instagram_publish: Optional[InstagramPublishInfoResponse] = None
 
 
 class NewsletterMessagesResponse(BaseModel):

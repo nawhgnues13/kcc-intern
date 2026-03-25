@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -22,6 +23,7 @@ from src.schemas.newsletter import (
     ArticleAIMessageResponse,
     ArticleSourceResponse,
     EmailRecipient,
+    InstagramPublishInfoResponse,
     InstagramPlatformOutputResponse,
     NewsletterDeleteResponse,
     NewsletterDetailResponse,
@@ -473,6 +475,19 @@ def _get_platform_output(article: Article) -> InstagramPlatformOutputResponse | 
         return None
 
 
+def _get_instagram_publish_info(article: Article) -> InstagramPublishInfoResponse | None:
+    meta = article.generation_meta or {}
+    raw_output = meta.get("instagram_publish")
+    if not isinstance(raw_output, dict):
+        return None
+
+    try:
+        return InstagramPublishInfoResponse.model_validate(raw_output)
+    except Exception:
+        logger.exception("Failed to parse stored instagram_publish for article %s", article.id)
+        return None
+
+
 def _build_image_prompt(
     *,
     article_title: str | None,
@@ -723,7 +738,8 @@ async def generate_newsletter(
             }
         )
 
-    generated = generate_newsletter_content(
+    generated = await asyncio.to_thread(
+        generate_newsletter_content,
         instruction=effective_instruction,
         content_format=effective_content_format,
         template_style=effective_template_style,
@@ -840,6 +856,7 @@ async def generate_newsletter(
         platform_output=InstagramPlatformOutputResponse.model_validate(platform_output)
         if platform_output
         else None,
+        instagram_publish=_get_instagram_publish_info(article),
     )
 
 
@@ -921,6 +938,7 @@ def get_newsletter_detail(*, db: Session, article_id: UUID) -> NewsletterDetailR
         created_at=article.created_at,
         updated_at=article.updated_at,
         platform_output=_get_platform_output(article),
+        instagram_publish=_get_instagram_publish_info(article),
     )
 
 

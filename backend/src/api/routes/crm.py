@@ -17,6 +17,9 @@ from src.services.crm_service import (
     create_grooming_registration,
     create_sales_registration,
     create_service_registration,
+    delete_grooming_registration,
+    delete_sales_registration,
+    delete_service_registration,
     get_grooming_registration_detail,
     get_sales_registration_detail,
     get_service_registration_detail,
@@ -135,6 +138,11 @@ async def update_sales_registration_route(
     )
 
 
+@router.delete("/sales-registrations/{registration_id}", status_code=204)
+async def delete_sales_registration_route(registration_id: UUID, db: Session = Depends(get_db)):
+    delete_sales_registration(db=db, registration_id=registration_id)
+
+
 @router.post("/service-registrations", response_model=ServiceRegistrationResponse)
 async def create_service_registration_route(
     employee_id: UUID = Form(...),
@@ -223,6 +231,11 @@ async def update_service_registration_route(
         existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),
         files=_clean_files(files),
     )
+
+
+@router.delete("/service-registrations/{registration_id}", status_code=204)
+async def delete_service_registration_route(registration_id: UUID, db: Session = Depends(get_db)):
+    delete_service_registration(db=db, registration_id=registration_id)
 
 
 @router.post("/grooming-registrations", response_model=GroomingRegistrationResponse)
@@ -321,3 +334,8 @@ async def update_grooming_registration_route(
         existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),
         files=_clean_files(files),
     )
+
+
+@router.delete("/grooming-registrations/{registration_id}", status_code=204)
+async def delete_grooming_registration_route(registration_id: UUID, db: Session = Depends(get_db)):
+    delete_grooming_registration(db=db, registration_id=registration_id)

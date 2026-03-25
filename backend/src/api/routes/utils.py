@@ -7,7 +7,10 @@ from urllib.parse import unquote
 router = APIRouter(prefix="/api/utils", tags=["utils"])
 
 @router.get("/download-image")
-async def download_image_proxy(url: str = Query(..., description="The absolute URL of the image to download")):
+async def download_image_proxy(
+    url: str = Query(..., description="The absolute URL of the image to download"),
+    download: bool = Query(False, description="Set true to force attachment download."),
+):
     """
     Proxy endpoint to download images from cross-origin sources (like S3) 
     that don't have proper CORS headers for direct browser downloading.
@@ -41,13 +44,14 @@ async def download_image_proxy(url: str = Query(..., description="The absolute U
                 pass
 
             # Stream the response back to client with attachment header
+            headers = {"Access-Control-Expose-Headers": "Content-Disposition"}
+            if download:
+                headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+
             return StreamingResponse(
                 content=response.iter_bytes(),
                 media_type=content_type,
-                headers={
-                    "Content-Disposition": f'attachment; filename="{filename}"',
-                    "Access-Control-Expose-Headers": "Content-Disposition"
-                }
+                headers=headers,
             )
             
     except httpx.HTTPStatusError as e:

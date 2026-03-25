@@ -12,6 +12,7 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
+import { motion } from "motion/react";
 import { useAuthStore } from "../store/useAuthStore";
 import { contentTaskService } from "../services/api/contentTaskService";
 import { ContentTaskItem, ContentTaskResult } from "../types/contentTask";
@@ -446,11 +447,67 @@ export function GenerationResultsPage() {
                       : "완료된 결과를 유형별로 나눠 보고 상세 화면으로 이동할 수 있습니다."}
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
+            <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
                 <LoaderCircle className="h-4 w-4 text-[#3721ED]" />
                 5초마다 자동 새로고침
               </div>
             </div>
+
+            {/* Segmented Tab Control for Content Type Branching */}
+            {(viewMode === "completed_all" ||
+              viewMode === "completed_blog" ||
+              viewMode === "completed_instagram") && (
+              <div className="mb-8 flex justify-start">
+                <div className="inline-flex gap-1 rounded-[20px] bg-slate-100 p-1.5 shadow-inner">
+                  {cards.slice(0, 3).map((tab) => {
+                    const active = viewMode === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setViewMode(tab.key)}
+                        className={`relative flex items-center gap-2 rounded-2xl px-6 py-2.5 text-sm font-bold transition-all duration-300 ${
+                          active ? "text-white shadow-md" : "text-slate-500 hover:text-slate-800"
+                        }`}
+                      >
+                        {active && (
+                          <motion.div
+                            layoutId="activeTabBackground"
+                            className={`absolute inset-0 rounded-2xl ${
+                              tab.key === "completed_blog"
+                                ? "bg-blue-600"
+                                : tab.key === "completed_instagram"
+                                  ? "bg-pink-600"
+                                  : "bg-slate-900"
+                            }`}
+                            transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
+                          />
+                        )}
+                        <span className="relative z-10 shrink-0">
+                          {tab.key === "completed_blog" ? (
+                            <FileText className="h-4 w-4" />
+                          ) : tab.key === "completed_instagram" ? (
+                            <InstagramIcon className="h-4 w-4" />
+                          ) : (
+                            <Layers className="h-4 w-4" />
+                          )}
+                        </span>
+                        <span className="relative z-10">{tab.label.replace(" 완료", "").replace("된 생성 결과", " 전체")}</span>
+                        {tab.value > 0 && (
+                          <span
+                            className={`relative z-10 flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-black leading-none ${
+                              active ? "bg-white/20 text-white" : "bg-slate-200 text-slate-500"
+                            }`}
+                          >
+                            {tab.value}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {renderBody()}
           </>
         )}

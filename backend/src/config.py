@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     gmail_app_password: str = ""
     email_to: str = ""
     server_url: str = "http://localhost:8000"
+    instagram_publish_access_token: str = ""
+    instagram_publish_ig_user_id: str = ""
+    instagram_publish_api_version: str = "v25.0"
+    instagram_publish_host_url: str = "graph.instagram.com"
 
     class Config:
         env_file = ".env"

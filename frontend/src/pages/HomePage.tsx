@@ -35,7 +35,11 @@ export function HomePage() {
         } else if (response && Array.isArray((response as any).data)) {
           articlesArray = (response as any).data;
         }
-        setArticles(articlesArray);
+        setArticles(
+          articlesArray.filter(
+            (article) => article.contentFormat === "newsletter",
+          ),
+        );
       } catch (error) {
         console.error("Failed to load articles", error);
       } finally {

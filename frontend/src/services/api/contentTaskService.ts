@@ -2,6 +2,7 @@ import { apiClient } from "./apiClient";
 import {
   ContentTaskItem,
   ContentTaskListResponse,
+  InstagramPublishResponse,
   ContentTaskResult,
   MyResultsResponse,
 } from "../../types/contentTask";
@@ -26,5 +27,18 @@ export const contentTaskService = {
 
   getTaskDetail: async (taskId: string): Promise<ContentTaskItem> => {
     return apiClient.get(`/api/content-tasks/${taskId}`);
+  },
+
+  publishInstagram: async (
+    taskId: string,
+    payload: {
+      access_token?: string;
+      ig_user_id?: string;
+      api_version?: string;
+      host_url?: string;
+      force?: boolean;
+    } = {},
+  ): Promise<InstagramPublishResponse> => {
+    return apiClient.post(`/api/content-tasks/${taskId}/publish-instagram`, payload);
   },
 };

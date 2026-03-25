@@ -410,6 +410,91 @@ def _list_active_tasks_for_source(db: Session, source_type: str, source_id: UUID
     )
 
 
+def _soft_delete_registration_tasks(db: Session, source_type: str, source_id: UUID) -> None:
+    now = datetime.now()
+    tasks = _list_active_tasks_for_source(db, source_type, source_id)
+    for task in tasks:
+        task.deleted_at = now
+
+
+def delete_sales_registration(*, db: Session, registration_id: UUID) -> None:
+    registration = db.scalar(
+        select(SalesRegistration).where(
+            SalesRegistration.id == registration_id,
+            SalesRegistration.deleted_at.is_(None),
+        )
+    )
+    if not registration:
+        raise HTTPException(status_code=404, detail="Sales registration not found.")
+
+    now = datetime.now()
+    registration.deleted_at = now
+    photos = list(
+        db.scalars(
+            select(SalesPhoto).where(
+                SalesPhoto.sales_registration_id == registration.id,
+                SalesPhoto.deleted_at.is_(None),
+            )
+        )
+    )
+    for photo in photos:
+        photo.deleted_at = now
+    _soft_delete_registration_tasks(db, "sale", registration.id)
+    db.commit()
+
+
+def delete_service_registration(*, db: Session, registration_id: UUID) -> None:
+    registration = db.scalar(
+        select(ServiceRegistration).where(
+            ServiceRegistration.id == registration_id,
+            ServiceRegistration.deleted_at.is_(None),
+        )
+    )
+    if not registration:
+        raise HTTPException(status_code=404, detail="Service registration not found.")
+
+    now = datetime.now()
+    registration.deleted_at = now
+    photos = list(
+        db.scalars(
+            select(ServicePhoto).where(
+                ServicePhoto.service_registration_id == registration.id,
+                ServicePhoto.deleted_at.is_(None),
+            )
+        )
+    )
+    for photo in photos:
+        photo.deleted_at = now
+    _soft_delete_registration_tasks(db, "service", registration.id)
+    db.commit()
+
+
+def delete_grooming_registration(*, db: Session, registration_id: UUID) -> None:
+    registration = db.scalar(
+        select(GroomingRegistration).where(
+            GroomingRegistration.id == registration_id,
+            GroomingRegistration.deleted_at.is_(None),
+        )
+    )
+    if not registration:
+        raise HTTPException(status_code=404, detail="Grooming registration not found.")
+
+    now = datetime.now()
+    registration.deleted_at = now
+    photos = list(
+        db.scalars(
+            select(GroomingPhoto).where(
+                GroomingPhoto.grooming_registration_id == registration.id,
+                GroomingPhoto.deleted_at.is_(None),
+            )
+        )
+    )
+    for photo in photos:
+        photo.deleted_at = now
+    _soft_delete_registration_tasks(db, "grooming", registration.id)
+    db.commit()
+
+
 def _soft_delete_missing_photos(existing_photos, keep_photo_ids: list[UUID] | None):
     if keep_photo_ids is None:
         return existing_photos
