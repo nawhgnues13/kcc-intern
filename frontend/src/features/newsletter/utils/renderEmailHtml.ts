@@ -24,7 +24,7 @@ function headerHtml(type: string): string {
         </table>
       </td>
       <td align="right" style="color:#94a3b8;font-size:13px;">
-        <div>Monthly Newsletter</div>
+        <div>Weekly Newsletter</div>
         <div style="margin-top:4px;font-family:monospace;">${today}</div>
       </td>
     </tr>
@@ -74,7 +74,7 @@ function footerHtml(type: string): string {
     return `
 <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:32px 40px;text-align:center;">
   <p style="font-size:13px;color:#64748b;margin:0;">© ${year} KCC Information &amp; Communication Co., Ltd. All rights reserved.</p>
-  <p style="font-size:11px;color:#94a3b8;margin:8px 0 0;">서울특별시 강서구 양천로 583 우림블루나인비즈니스센터 | 대표전화 02-2000-0000</p>
+  <p style="font-size:11px;color:#94a3b8;margin:8px 0 0;">서울시 용산구 청파로 61길 5 6F~8F | 대표전화 02-6090-7800</p>
   <p style="margin:16px 0 0;">
     <a href="#" style="color:#dc2626;font-size:12px;margin:0 8px;text-decoration:none;">회사소개</a>
     <a href="#" style="color:#dc2626;font-size:12px;margin:0 8px;text-decoration:none;">개인정보처리방침</a>
@@ -140,16 +140,16 @@ function applyInlineStyles(html: string): string {
   const base = 'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;';
 
   root.querySelectorAll('h1').forEach(el => {
-    el.setAttribute('style', `${base}font-size:26px;font-weight:700;color:#111827;margin:0 0 16px;line-height:1.3;`);
+    el.setAttribute('style', `${base}font-size:26px;font-weight:700;color:#1e293b;margin:0 0 16px;line-height:1.3;`);
   });
   root.querySelectorAll('h2').forEach(el => {
-    el.setAttribute('style', `${base}font-size:21px;font-weight:700;color:#111827;margin:24px 0 12px;line-height:1.4;`);
+    el.setAttribute('style', `${base}font-size:21px;font-weight:700;color:#1e293b;margin:24px 0 12px;line-height:1.4;`);
   });
   root.querySelectorAll('h3').forEach(el => {
-    el.setAttribute('style', `${base}font-size:17px;font-weight:600;color:#111827;margin:20px 0 8px;line-height:1.4;`);
+    el.setAttribute('style', `${base}font-size:17px;font-weight:600;color:#1e293b;margin:20px 0 8px;line-height:1.4;`);
   });
   root.querySelectorAll('p').forEach(el => {
-    el.setAttribute('style', `${base}font-size:15px;line-height:1.75;color:#374151;margin:0 0 16px;`);
+    el.setAttribute('style', `${base}font-size:16px;line-height:1.625;color:#475569;margin:0 0 16px;`);
   });
   root.querySelectorAll('ul').forEach(el => {
     el.setAttribute('style', `margin:0 0 16px;padding-left:24px;`);
@@ -158,10 +158,10 @@ function applyInlineStyles(html: string): string {
     el.setAttribute('style', `margin:0 0 16px;padding-left:24px;`);
   });
   root.querySelectorAll('li').forEach(el => {
-    el.setAttribute('style', `${base}font-size:15px;line-height:1.75;color:#374151;margin:0 0 6px;`);
+    el.setAttribute('style', `${base}font-size:16px;line-height:1.625;color:#475569;margin:0 0 6px;`);
   });
   root.querySelectorAll('blockquote').forEach(el => {
-    el.setAttribute('style', `border-left:4px solid #d1d5db;padding:8px 16px;margin:0 0 16px;color:#6b7280;font-style:italic;`);
+    el.setAttribute('style', `border-left:3px solid #dc2626;padding:8px 16px;margin:0 0 16px;color:#64748b;font-style:italic;`);
   });
   root.querySelectorAll('strong').forEach(el => {
     el.setAttribute('style', `font-weight:700;color:inherit;`);
@@ -176,13 +176,13 @@ function applyInlineStyles(html: string): string {
     el.setAttribute('style', `background:#1e293b;color:#e2e8f0;padding:16px;border-radius:8px;margin:0 0 16px;overflow:auto;font-family:monospace;font-size:13px;`);
   });
   root.querySelectorAll('hr').forEach(el => {
-    el.setAttribute('style', `border:none;border-top:1px solid #e5e7eb;margin:24px 0;`);
+    el.setAttribute('style', `border:none;border-top:1px solid #e2e8f0;margin:24px 0;`);
   });
   root.querySelectorAll('a').forEach(el => {
     el.setAttribute('style', `color:#3721ED;text-decoration:underline;`);
   });
   root.querySelectorAll('img').forEach(el => {
-    el.setAttribute('style', `max-width:100%;height:auto;display:block;border-radius:12px;border:1px solid #e2e8f0;margin:0 0 16px;`);
+    el.setAttribute('style', `max-width:100%;height:auto;display:block;border-radius:8px;margin:0 0 16px;`);
   });
 
   return root.innerHTML;
@@ -220,7 +220,8 @@ export function renderEmailHtml(headerFooter: string, bodyContentJson: unknown, 
 <table width="680" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
 ${header}
 <tr><td style="padding:40px 48px 32px;">
-  <h1 style="font-size:24px;font-weight:700;margin:0 0 24px;color:#111827;">${title}</h1>
+  <h1 style="font-size:24px;font-weight:800;margin:0 0 24px;color:#1e293b;text-align:center;">${title}</h1>
+  <div style="width:40px;height:3px;background:#dc2626;margin:0 auto 32px;border-radius:2px;"></div>
   ${bodyHtml}
 </td></tr>
 ${footer}

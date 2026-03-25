@@ -4,17 +4,41 @@ import { RegistrationTable, ColumnDef } from "../../features/crm/components/Regi
 import { employeeService, Employee, CreateEmployeeRequest } from "../../services/api/employeeService";
 import { ModalLayout } from "../../components/shared/ModalLayout";
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11) return digits.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+  if (digits.length === 10) return digits.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+  return digits;
+}
+
+function formatCompanyCode(code: string): string {
+  const upper = (code || '').toUpperCase();
+  if (upper === 'KCC_IT') return 'KCC정보통신';
+  if (upper === 'KCC_AUTOGROUP') return 'KCC오토그룹';
+  return code;
+}
+
+function formatDepartmentCode(code: string): string {
+  const map: Record<string, string> = {
+    sales: '영업점',
+    service_center: '서비스센터',
+    business_support: '사업지원그룹',
+    poodly: '포들리',
+  };
+  return map[code] ?? code;
+}
+
 export function EmployeeManagementPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const [formData, setFormData] = useState<CreateEmployeeRequest>({
-    name: "", email: "", phone: "", companyCode: "kcc_autogroup", departmentCode: "sales", position: "", branchName: ""
+    name: "", email: "", phone: "", companyCode: "KCC_AUTOGROUP", departmentCode: "sales", position: "", branchName: ""
   });
 
   const fetchEmployees = async () => {
@@ -43,19 +67,19 @@ export function EmployeeManagementPage() {
       });
     } else {
       setEditingId(null);
-      setFormData({ name: "", email: "", phone: "", companyCode: "kcc_autogroup", departmentCode: "sales", position: "", branchName: "" });
+      setFormData({ name: "", email: "", phone: "", companyCode: "KCC_AUTOGROUP", departmentCode: "sales", position: "", branchName: "" });
     }
     setIsModalOpen(true);
   };
 
   const handleCompanyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCompany = e.target.value;
-    const newDept = newCompany === 'kcc_autogroup' ? 'sales' : 'business_support';
+    const isAuto = newCompany.toUpperCase() === 'KCC_AUTOGROUP';
     setFormData({
       ...formData,
       companyCode: newCompany,
-      departmentCode: newDept,
-      branchName: newCompany === 'kcc_autogroup' ? formData.branchName : ""
+      departmentCode: isAuto ? 'sales' : 'business_support',
+      branchName: isAuto ? formData.branchName : "",
     });
   };
 
@@ -102,9 +126,9 @@ export function EmployeeManagementPage() {
   const columns: ColumnDef<Employee>[] = [
     { header: "이름", field: "name" },
     { header: "이메일", field: "email" },
-    { header: "연락처", field: "phone" },
-    { header: "회사", field: "companyCode" },
-    { header: "부서", field: "departmentCode" },
+    { header: "연락처", render: (item) => <span>{formatPhone(item.phone || '')}</span> },
+    { header: "회사", render: (item) => <span>{formatCompanyCode(item.companyCode)}</span> },
+    { header: "부서", render: (item) => <span>{formatDepartmentCode(item.departmentCode)}</span> },
     { header: "지점명", field: "branchName" },
     { header: "계정 연결 상태", render: (item) => (
       <span className={`px-2 py-1 rounded-md text-xs font-medium ${item.linkedUserId ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -169,20 +193,29 @@ export function EmployeeManagementPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 block mb-1">연락처</label>
-                <input required type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
+                <input
+                  required
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="01012345678"
+                  value={formData.phone}
+                  onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, '')})}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm"
+                />
+                {formData.phone && <p className="text-xs text-slate-400 mt-1">{formatPhone(formData.phone)}</p>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 block mb-1">회사</label>
                   <select value={formData.companyCode} onChange={handleCompanyChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white">
-                    <option value="kcc_autogroup">KCC오토그룹</option>
-                    <option value="kcc_it">KCC정보통신</option>
+                    <option value="KCC_AUTOGROUP">KCC오토그룹</option>
+                    <option value="KCC_IT">KCC정보통신</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 block mb-1">부서</label>
                   <select value={formData.departmentCode} onChange={e => setFormData({...formData, departmentCode: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white">
-                    {formData.companyCode === 'kcc_autogroup' ? (
+                    {formData.companyCode.toUpperCase() === 'KCC_AUTOGROUP' ? (
                       <>
                         <option value="sales">영업점</option>
                         <option value="service_center">서비스센터</option>
@@ -197,11 +230,11 @@ export function EmployeeManagementPage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className={formData.companyCode === 'kcc_autogroup' ? "" : "col-span-2"}>
+                <div className={formData.companyCode.toUpperCase() === 'KCC_AUTOGROUP' ? "" : "col-span-2"}>
                   <label className="text-xs font-semibold text-slate-500 block mb-1">직급</label>
                   <input required type="text" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />
                 </div>
-                {formData.companyCode === 'kcc_autogroup' && (
+                {formData.companyCode.toUpperCase() === 'KCC_AUTOGROUP' && (
                   <div>
                     <label className="text-xs font-semibold text-slate-500 block mb-1">지점명</label>
                     <input required type="text" value={formData.branchName} onChange={e => setFormData({...formData, branchName: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" />

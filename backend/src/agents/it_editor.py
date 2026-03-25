@@ -52,7 +52,8 @@ summary (30자 이내):
 image_prompt (영어):
 - 미니멀 플랫 일러스트 스타일 유지
 - 기사 주제를 상징하는 구체적 오브젝트 포함 (추상적 표현 금지)
-- 예: "A flat illustration of a shield with a magnifying glass, soft blue tones, minimal background"
+- 16:9 가로형 비율로 생성
+- 예: "A flat illustration of a shield with a magnifying glass, soft blue tones, minimal background, 16:9 aspect ratio, wide landscape format"
 
 ---
 

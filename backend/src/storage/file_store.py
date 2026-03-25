@@ -20,23 +20,49 @@ def generate_id() -> str:
 
 
 def load_recipients(category: str | None = None) -> list[dict]:
-    """수신자 목록 로드. category 지정 시 해당 분류만, None이면 전체 반환"""
-    path = DATA_DIR / "recipients.json"
-    all_recipients = json.loads(path.read_text(encoding="utf-8"))
-    if category and category != "전체":
-        return [r for r in all_recipients if r["category"] == category]
-    return all_recipients
+    """DB에서 수신자 목록 조회. category: 'KCC_IT' | 'KCC_AUTOGROUP' | 'customers' | None(전체)"""
+    from src.db import SessionLocal
+    from src.services.crm_service import list_customers, list_employees
+
+    db = SessionLocal()
+    try:
+        results: list[dict] = []
+        if category in (None, "KCC_IT"):
+            resp = list_employees(db=db, company_code="KCC_IT")
+            for e in resp.items:
+                if e.email:
+                    results.append({"name": e.name, "email": e.email, "category": "KCC_IT"})
+        if category in (None, "KCC_AUTOGROUP"):
+            resp = list_employees(db=db, company_code="KCC_AUTOGROUP")
+            for e in resp.items:
+                if e.email:
+                    results.append({"name": e.name, "email": e.email, "category": "KCC_AUTOGROUP"})
+        if category in (None, "customers"):
+            resp = list_customers(db=db)
+            for c in resp.items:
+                results.append({"name": c.name, "email": c.email, "category": "customers"})
+        return results
+    finally:
+        db.close()
 
 
-def get_categories() -> list[str]:
-    """수신자 분류 목록 반환 (중복 제거)"""
-    path = DATA_DIR / "recipients.json"
-    all_recipients = json.loads(path.read_text(encoding="utf-8"))
-    seen = []
-    for r in all_recipients:
-        if r["category"] not in seen:
-            seen.append(r["category"])
-    return seen
+def get_db_recipient_options() -> list[dict]:
+    """Slack 모달용 수신자 카테고리 옵션 목록 (value, label, count)"""
+    from src.db import SessionLocal
+    from src.services.crm_service import list_customers, list_employees
+
+    db = SessionLocal()
+    try:
+        options = []
+        for code, label in [("KCC_IT", "KCC정보통신 직원"), ("KCC_AUTOGROUP", "KCC오토그룹 직원")]:
+            resp = list_employees(db=db, company_code=code)
+            emails = [e for e in resp.items if e.email]
+            options.append({"value": code, "label": label, "count": len(emails)})
+        resp = list_customers(db=db)
+        options.append({"value": "customers", "label": "전체 고객", "count": len(resp.items)})
+        return options
+    finally:
+        db.close()
 
 
 def save_curated(curated_id: str, articles: list[CuratedArticle], newsletter_type: str) -> None:

@@ -51,7 +51,8 @@ summary (30자 이내):
 image_prompt (영어):
 - 자동차 관련 미니멀 플랫 일러스트 스타일
 - 구체적 오브젝트 포함 (자동차 실루엣, 로고 느낌의 아이콘, 도로, EV 충전기 등)
-- 예: "A flat illustration of a luxury car silhouette with a price tag icon, soft grey and blue tones, minimal background"
+- 16:9 가로형 비율로 생성
+- 예: "A flat illustration of a luxury car silhouette with a price tag icon, soft grey and blue tones, minimal background, 16:9 aspect ratio, wide landscape format"
 
 ---
 

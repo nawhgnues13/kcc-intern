@@ -34,7 +34,8 @@ summary (30자 이내):
 image_prompt (영어):
 - KCC 기업 이미지에 맞는 미니멀 플랫 일러스트
 - 소식 내용을 상징하는 오브젝트 포함 (자동차, 건물, 트로피, 악수 등)
-- 예: "A flat illustration of a modern office building with a small trophy icon, navy and white tones, minimal background"
+- 16:9 가로형 비율로 생성
+- 예: "A flat illustration of a modern office building with a small trophy icon, navy and white tones, minimal background, 16:9 aspect ratio, wide landscape format"
 
 ---
 
