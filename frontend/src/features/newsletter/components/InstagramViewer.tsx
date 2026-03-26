@@ -162,8 +162,8 @@ export function InstagramViewer({
         </div>
       ) : null}
 
-      <div className={`flex flex-1 flex-col items-center overflow-y-auto bg-slate-100/50 p-4 md:p-12 ${showControls ? "pt-20" : "pt-8"}`}>
-        <div className="relative mb-20 flex w-full max-w-[420px] origin-top flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+      <div className={`flex flex-1 flex-col items-center overflow-y-auto bg-slate-100/50 p-2 md:p-4 ${showControls ? "pt-12" : "pt-2"}`}>
+        <div className="relative mb-6 flex w-full max-w-[360px] origin-top flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
           <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
             <div className="w-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-500 p-[2px]">
               <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white">
@@ -176,7 +176,7 @@ export function InstagramViewer({
             </div>
           </div>
 
-          <div className="group relative aspect-square overflow-hidden border-b border-slate-50 bg-slate-100">
+          <div className="group relative aspect-[16/10] shrink-0 overflow-hidden border-b border-slate-50 bg-slate-100">
             {visibleImages.length > 0 ? (
               <>
                 <div
@@ -271,7 +271,7 @@ export function InstagramViewer({
             </span>
           </div>
 
-          <div className="min-h-[280px] flex-1 overflow-y-auto px-5 pb-8">
+          <div className="min-h-[150px] flex-1 overflow-y-auto px-5 pb-8">
             <div className="mb-4">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-semibold text-slate-800">게시글 본문</span>

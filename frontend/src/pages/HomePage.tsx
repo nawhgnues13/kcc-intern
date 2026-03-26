@@ -17,6 +17,7 @@ export function HomePage() {
   const [articles, setArticles] = useState<NewsletterListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'recommended' | 'my'>('recommended');
+  const [failedThumbnails, setFailedThumbnails] = useState<Record<string, boolean>>({});
   
   const navigate = useNavigate();
   const setTemplate = useSessionStore((state) => state.setTemplate);
@@ -62,9 +63,49 @@ export function HomePage() {
     navigate(`/workspace?id=${article.id || article.articleId}&mode=view`, { state: { article } });
   };
 
+  const toDisplayImageUrl = (src?: string | null) => {
+    const value = (src || "").trim();
+    if (!value || !value.startsWith("http")) {
+      return value || null;
+    }
+
+    return `/api/utils/download-image?url=${encodeURIComponent(value)}&download=false`;
+  };
+
   return (
     <div className="flex-1 overflow-y-auto w-full bg-[#F8F9FB] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       <div className="max-w-6xl mx-auto px-4 py-12">
+
+        {/* Brand Hero Section - Maximized Logo Focus */}
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          className="flex flex-col md:flex-row items-center justify-center mb-24 text-center md:text-left gap-12 md:gap-20 pt-10"
+        >
+          {/* Maximized Logo Container */}
+          <motion.div 
+            whileHover={{ scale: 1.02, rotate: 1 }}
+            className="w-44 h-44 md:w-64 md:h-64 rounded-[3rem] overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.15)] border-[12px] border-white bg-white transition-all ring-1 ring-slate-100/50"
+          >
+            <img src="/logo.png" alt="KCCStudio" className="w-full h-full object-cover scale-110" />
+          </motion.div>
+
+          {/* Calibrated Branding Group */}
+          <div className="flex flex-col items-center md:items-start max-w-lg">
+            <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-slate-900 mb-2 leading-none">
+              KCC<span className="text-[#3721ED]">Studio</span>
+            </h1>
+            <div className="h-2 w-20 bg-[#3721ED] rounded-full mb-8 shadow-sm shadow-[#3721ED]/30" />
+            <p className="text-slate-500 font-bold text-xl md:text-2xl leading-snug tracking-tight">
+              무엇을 만들까요?<br />
+              <span className="text-slate-400 font-medium text-lg md:text-xl mt-3 block leading-relaxed">
+                당신의 아이디어를 비즈니스의 가치로 실현하는<br />
+                스마트 창작 스튜디오에 오신 것을 환영합니다.
+              </span>
+            </p>
+          </div>
+        </motion.div>
 
         {/* Recommended Articles Section (Moved up) */}
         {/* Segmented Control / Tabs */}
@@ -150,8 +191,16 @@ export function HomePage() {
               ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {displayedArticles.map((article, index) => (
+                (() => {
+                  const articleKey = String(article.id || article.articleId || index);
+                  const thumbnailSrc =
+                    failedThumbnails[articleKey]
+                      ? null
+                      : toDisplayImageUrl(article.thumbnailImageUrl);
+
+                  return (
                 <motion.div
-                  key={article.id || article.articleId || index}
+                  key={articleKey}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 + (index * 0.1) }}
@@ -159,11 +208,14 @@ export function HomePage() {
                   onClick={() => handleArticleClick(article)}
                 >
                   <div className="h-48 overflow-hidden relative group bg-slate-100 flex items-center justify-center">
-                    {article.thumbnailImageUrl ? (
+                    {thumbnailSrc ? (
                       <img 
-                        src={article.thumbnailImageUrl} 
+                        src={thumbnailSrc}
                         alt={article.title} 
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={() =>
+                          setFailedThumbnails((prev) => ({ ...prev, [articleKey]: true }))
+                        }
                       />
                     ) : (
                       <div className="text-slate-400 text-sm font-medium">No Image</div>
@@ -189,6 +241,8 @@ export function HomePage() {
                     </div>
                   </div>
                 </motion.div>
+                  );
+                })()
               ))}
             </div>
           )}

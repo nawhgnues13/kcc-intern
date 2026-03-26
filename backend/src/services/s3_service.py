@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 from uuid import uuid4
 
 import boto3
@@ -44,6 +45,35 @@ def _build_object_url(object_key: str) -> str:
     return f"https://{settings.aws_s3_bucket}.s3.{settings.aws_region}.amazonaws.com/{object_key}"
 
 
+def _extract_object_key_from_url(url: str) -> str | None:
+    if not url:
+        return None
+
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+
+    bucket = settings.aws_s3_bucket
+    if not bucket:
+        return None
+
+    path = unquote(parsed.path.lstrip("/"))
+    netloc = (parsed.netloc or "").lower()
+
+    if netloc.startswith(f"{bucket}.s3.") or netloc == f"{bucket}.amazonaws.com":
+        return path or None
+
+    if settings.aws_s3_endpoint_url:
+        endpoint = urlparse(settings.aws_s3_endpoint_url)
+        endpoint_host = (endpoint.netloc or "").lower()
+        if netloc == endpoint_host:
+            bucket_prefix = f"{bucket}/"
+            if path.startswith(bucket_prefix):
+                return path[len(bucket_prefix):] or None
+
+    return None
+
+
 def _put_object(*, object_key: str, content: bytes, content_type: str) -> str:
     try:
         client = _get_s3_client()
@@ -57,6 +87,39 @@ def _put_object(*, object_key: str, content: bytes, content_type: str) -> str:
         raise HTTPException(status_code=500, detail="Failed to upload file to S3.") from exc
 
     return _build_object_url(object_key)
+
+
+def get_private_object_from_url(url: str) -> tuple[bytes, str, str] | None:
+    object_key = _extract_object_key_from_url(url)
+    if not object_key:
+        return None
+
+    try:
+        client = _get_s3_client()
+        response = client.get_object(Bucket=settings.aws_s3_bucket, Key=object_key)
+    except (BotoCoreError, ClientError):
+        return None
+
+    body = response["Body"].read()
+    content_type = response.get("ContentType") or "application/octet-stream"
+    filename = Path(object_key).name or "download"
+    return body, content_type, filename
+
+
+def generate_presigned_read_url_from_url(url: str, expires_in: int = 3600) -> str | None:
+    object_key = _extract_object_key_from_url(url)
+    if not object_key:
+        return None
+
+    try:
+        client = _get_s3_client()
+        return client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.aws_s3_bucket, "Key": object_key},
+            ExpiresIn=expires_in,
+        )
+    except (BotoCoreError, ClientError):
+        return None
 
 
 def upload_newsletter_asset(

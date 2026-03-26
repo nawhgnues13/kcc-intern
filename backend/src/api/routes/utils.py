@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 import httpx
 import mimetypes
 from urllib.parse import unquote
+
+from src.services.s3_service import generate_presigned_read_url_from_url, get_private_object_from_url
 
 router = APIRouter(prefix="/api/utils", tags=["utils"])
 
@@ -22,6 +24,24 @@ async def download_image_proxy(
         raise HTTPException(status_code=400, detail="Invalid URL format. Must be absolute http/https URL.")
 
     try:
+        if not download:
+            presigned_url = generate_presigned_read_url_from_url(decoded_url, expires_in=3600)
+            if presigned_url:
+                return RedirectResponse(url=presigned_url, status_code=307)
+
+        private_asset = get_private_object_from_url(decoded_url)
+        if private_asset is not None:
+            content, content_type, filename = private_asset
+            headers = {"Access-Control-Expose-Headers": "Content-Disposition"}
+            if download:
+                headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+            return StreamingResponse(
+                content=iter([content]),
+                media_type=content_type,
+                headers=headers,
+            )
+
         async with httpx.AsyncClient() as client:
             # Fetch the image from the remote server (S3)
             # Backend-to-backend requests are not subject to browser CORS

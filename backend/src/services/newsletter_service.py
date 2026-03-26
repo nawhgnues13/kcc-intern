@@ -188,12 +188,22 @@ def _serialize_messages(messages: list[ArticleAIMessage]) -> list[dict[str, Any]
 
 def _extract_image_urls(body_content: dict[str, Any]) -> list[str]:
     image_urls: list[str] = []
-    for block in body_content.get("content", []):
-        if block.get("type") == "image":
-            attrs = block.get("attrs") or {}
-            src = attrs.get("src")
-            if isinstance(src, str) and src:
-                image_urls.append(src)
+    seen: set[str] = set()
+
+    for attrs in _iter_image_attrs(body_content):
+        src = attrs.get("src")
+        if not isinstance(src, str):
+            continue
+
+        normalized = src.strip()
+        if not normalized:
+            continue
+        if normalized in seen:
+            continue
+
+        seen.add(normalized)
+        image_urls.append(normalized)
+
     return image_urls
 
 
@@ -614,6 +624,17 @@ def _sync_article_images(db: Session, article_id: UUID, body_content: dict[str, 
 
     for index, image_url in enumerate(_extract_image_urls(body_content)):
         db.add(ArticleImage(article_id=article_id, image_url=image_url, sort_order=index))
+
+
+def resync_article_images(
+    *,
+    db: Session,
+    article_id: UUID,
+) -> int:
+    article = _get_article(db, article_id)
+    _sync_article_images(db, article.id, article.body_content)
+    db.commit()
+    return len(_extract_image_urls(article.body_content))
 
 
 async def generate_newsletter(

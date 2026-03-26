@@ -24,10 +24,10 @@ export function Sidebar() {
       {/* Logo Area */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100">
         <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#3721ED] to-[#6A58FF] flex items-center justify-center text-white shadow-sm shadow-[#3721ED]/20 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-lg overflow-hidden flex items-center justify-center bg-white shadow-sm border border-slate-100 group-hover:scale-105 transition-transform">
+            <img src="/logo.png" alt="KCCStudio" className="w-full h-full object-cover" />
           </div>
-          <span className="font-bold text-lg tracking-tight text-slate-800">KCCNewsletter</span>
+          <span className="font-bold text-lg tracking-tight text-slate-800">KCCStudio</span>
         </Link>
       </div>
 
@@ -60,7 +60,7 @@ export function Sidebar() {
         </div>
 
         <div>
-          <div className="text-xs font-semibold text-slate-400 mb-3 px-2 uppercase tracking-wider">임시 CRM (운영)</div>
+          <div className="text-xs font-semibold text-slate-400 mb-3 px-2 uppercase tracking-wider">임시 DB (운영)</div>
           <div className="space-y-1">
             {crmItems.map((item) => {
               const isActive = location.pathname.startsWith(item.path);

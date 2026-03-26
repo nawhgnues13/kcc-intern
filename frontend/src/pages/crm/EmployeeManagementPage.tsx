@@ -145,7 +145,7 @@ export function EmployeeManagementPage() {
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
               <Users className="w-8 h-8 text-[#3721ED]" />
-              직원 관리 (CRM)
+              직원 관리 (DB)
             </h1>
             <p className="text-slate-500 mt-2">직원 데이터를 등록하고 관리합니다.</p>
           </div>

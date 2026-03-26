@@ -18,6 +18,7 @@ export interface NewsletterListItem {
   summary?: string;
   status?: string; // e.g. 'published', 'deleted'
   authorName?: string;
+  authorUserId?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -9,6 +9,7 @@ import { useAuthStore } from "../store/useAuthStore";
 export function ArticleListPage() {
   const [articles, setArticles] = useState<NewsletterListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failedThumbnails, setFailedThumbnails] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
 
@@ -40,6 +41,15 @@ export function ArticleListPage() {
     void loadArticles();
   }, [user?.id]);
 
+  const toDisplayImageUrl = (src?: string | null) => {
+    const value = (src || "").trim();
+    if (!value || !value.startsWith("http")) {
+      return value || null;
+    }
+
+    return `/api/utils/download-image?url=${encodeURIComponent(value)}&download=false`;
+  };
+
   return (
     <div className="flex-1 h-full w-full overflow-y-auto bg-[#F8F9FB] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -69,9 +79,15 @@ export function ArticleListPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {articles.map((article, idx) => (
+            {articles.map((article, idx) => {
+              const articleKey = String(article.id || article.articleId || idx);
+              const thumbnailSrc = failedThumbnails[articleKey]
+                ? null
+                : toDisplayImageUrl(article.thumbnailImageUrl);
+
+              return (
               <motion.div
-                key={article.id || article.articleId || idx}
+                key={articleKey}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: idx * 0.05 }}
@@ -83,13 +99,16 @@ export function ArticleListPage() {
                 className="group flex cursor-pointer flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
               >
                 <div className="relative flex h-56 items-center justify-center overflow-hidden bg-slate-100">
-                  {article.thumbnailImageUrl ? (
+                  {thumbnailSrc ? (
                     <motion.img
                       whileHover={{ scale: 1.05 }}
                       transition={{ duration: 0.4 }}
-                      src={article.thumbnailImageUrl}
+                      src={thumbnailSrc}
                       alt={article.title}
                       className="h-full w-full object-cover"
+                      onError={() =>
+                        setFailedThumbnails((prev) => ({ ...prev, [articleKey]: true }))
+                      }
                     />
                   ) : (
                     <div className="font-medium text-slate-400">No Image</div>
@@ -131,7 +150,8 @@ export function ArticleListPage() {
                   </div>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

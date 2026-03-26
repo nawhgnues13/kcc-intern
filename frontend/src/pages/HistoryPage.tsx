@@ -70,6 +70,7 @@ export function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [articles, setArticles] = useState<NewsletterListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [failedThumbnails, setFailedThumbnails] = useState<Record<string, boolean>>({});
 
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -115,6 +116,15 @@ export function HistoryPage() {
       articles.filter((item) => (item.title || "").toLowerCase().includes(searchTerm.trim().toLowerCase())),
     [articles, searchTerm],
   );
+
+  const toDisplayImageUrl = (src?: string | null) => {
+    const value = (src || "").trim();
+    if (!value || !value.startsWith("http")) {
+      return value || null;
+    }
+
+    return `/api/utils/download-image?url=${encodeURIComponent(value)}&download=false`;
+  };
 
   const handleDelete = async (event: React.MouseEvent, articleId: string) => {
     event.stopPropagation();
@@ -210,6 +220,10 @@ export function HistoryPage() {
                   const typeLabel = getContentTypeLabel(item.contentFormat);
                   const TypeIcon = getContentTypeIcon(typeLabel);
                   const isDeleted = item.status === "deleted";
+                  const articleKey = item.articleId;
+                  const thumbnailSrc = failedThumbnails[articleKey]
+                    ? null
+                    : toDisplayImageUrl(item.thumbnailImageUrl);
 
                   return (
                     <motion.tr
@@ -229,11 +243,14 @@ export function HistoryPage() {
                       <td className="w-[48%] px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200/60 bg-slate-100 shadow-sm">
-                            {item.thumbnailImageUrl ? (
+                            {thumbnailSrc ? (
                               <img
-                                src={item.thumbnailImageUrl}
+                                src={thumbnailSrc}
                                 alt="thumbnail"
                                 className="h-full w-full object-cover"
+                                onError={() =>
+                                  setFailedThumbnails((prev) => ({ ...prev, [articleKey]: true }))
+                                }
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-slate-300">

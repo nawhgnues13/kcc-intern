@@ -18,7 +18,7 @@ from src.schemas.newsletter import (
 )
 from src.services.content_task_service import get_content_task
 from src.services.newsletter_service import _build_instagram_platform_output, _get_article
-from src.services.s3_service import upload_newsletter_asset
+from src.services.s3_service import generate_presigned_read_url_from_url, upload_newsletter_asset
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,9 @@ async def _prepare_instagram_publish_urls(
             content=jpeg_bytes,
             entity_key=f"{article.id}/instagram-publish",
         )
-        prepared_urls.append(uploaded_url)
+        prepared_urls.append(
+            generate_presigned_read_url_from_url(uploaded_url, expires_in=3600) or uploaded_url
+        )
 
     return prepared_urls
 

@@ -103,7 +103,7 @@ function ProcessingTaskCard({ task }: { task: ContentTaskItem }) {
       </h3>
 
       <p className="mb-4 line-clamp-2 text-sm font-medium leading-relaxed text-slate-500">
-        {task.summary || "등록된 CRM 정보를 기반으로 자동 생성 중입니다."}
+        {task.summary || "등록된 DB 정보를 기반으로 자동 생성 중입니다."}
       </p>
 
       <div className="grid grid-cols-1 gap-2 text-xs font-semibold text-slate-400 sm:grid-cols-2">
@@ -281,7 +281,7 @@ export function GenerationResultsPage() {
           <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white py-24 text-slate-400">
             <LoaderCircle className="mb-4 h-12 w-12 opacity-20" />
             <p className="text-lg font-bold">진행 중인 작업이 없습니다.</p>
-            <p className="mt-1 text-sm">새 CRM 등록이 들어오면 이곳에서 생성 상태를 확인할 수 있습니다.</p>
+            <p className="mt-1 text-sm">새 DB 등록이 들어오면 이곳에서 생성 상태를 확인할 수 있습니다.</p>
           </div>
         );
       }
@@ -351,7 +351,7 @@ export function GenerationResultsPage() {
             </h1>
           </div>
           <p className="font-medium text-slate-500">
-            CRM 등록 데이터를 기반으로 자동 생성된 블로그와 인스타그램 결과를 상태별로 확인하세요.
+            DB 등록 데이터를 기반으로 자동 생성된 블로그와 인스타그램 결과를 상태별로 확인하세요.
           </p>
         </div>
 
