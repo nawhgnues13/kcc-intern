@@ -1,4 +1,5 @@
 import json
+import json_repair
 import logging
 from datetime import datetime
 
@@ -20,34 +21,39 @@ SYSTEM_INSTRUCTION = """당신은 사내 IT 뉴스레터 에디터입니다.
 
 [기사 카테고리별 작성 톤]
 
-개발 (개발자 소식 / 도구):
-- 실무에서 어떻게 쓰이는지 구체적으로 언급
-- "이걸 쓰면 뭐가 달라지나"를 명확히
-- 기존 도구와의 차이점, 도입 시 고려사항 포함
-
-기술 (일반인 소프트웨어 / 기술 트렌드):
+트렌드 (일반인 소프트웨어 / 기술 트렌드):
 - 전문 용어 없이, 일상 언어로 작성
 - "나한테 어떤 영향이 있나"를 중심으로 서술
 - 지나치게 기술적인 설명은 생략
 
-심층분석 (심층 분석 / 리서치):
+실무 (개발자 소식 / 도구):
+- 실무에서 어떻게 쓰이는지 구체적으로 언급
+- "이걸 쓰면 뭐가 달라지나"를 명확히
+- 기존 도구와의 차이점, 도입 시 고려사항 포함
+
+인사이트 (심층 분석 / 리서치):
 - "이게 왜 중요한가"를 중심으로 서술
-- 기술적 배경 → 핵심 발견 → 실무 영향 순서로 전개
+- 기술적 배경 → 핵심 발견 → 실무 영향 → 앞으로의 전망 순서로 전개
 - 예: "단순히 빠른 게 아니라, 기존 방식의 어떤 한계를 깨뜨렸는지"
+- 인사이트 기사의 body는 650~800자로 작성 (다른 카테고리보다 길게 — 깊이가 핵심)
+- 전문 용어는 반드시 쉽게 풀어서 설명, 비개발자도 이해할 수 있어야 함
 
 ---
 
 [필드별 작성 기준]
 
-body (400~600자):
+body:
+- 트렌드·실무 카테고리: 450~650자 (검수 기준 400자 이상, 여유 있게 작성)
+- 인사이트 카테고리: 650~800자 (깊이 있는 분석이 핵심, 다른 카테고리보다 길게 작성)
 - 첫 문장: 독자의 호기심을 자극하는 핵심 포인트로 시작 (단순 사실 나열 금지)
-- 중간: 배경 또는 작동 원리를 1~2문장으로 간결하게
+- 중간: 배경 또는 작동 원리를 간결하게 (심층분석은 2~3문장으로 더 자세히)
 - 끝: 실무적 시사점 또는 앞으로의 방향으로 마무리
 - 톤: 동료에게 슬랙으로 공유하듯 친근하지만 신뢰감 있게
 
-summary (30자 이내):
+summary (25자 이내, 검수 기준 30자):
 - 기사의 핵심을 한 줄로. "~했다" 보단 "~의 시대가 왔다", "~가 바뀐다" 같은 임팩트 있는 표현 사용
 - 독자가 body를 읽고 싶어지게 만드는 훅(hook) 역할
+- 반드시 25자 이내로 작성할 것 (공백 포함)
 
 image_prompt (영어):
 - 미니멀 플랫 일러스트 스타일 유지
@@ -89,17 +95,21 @@ def _strip_json_fences(text: str) -> str:
     return text.strip()
 
 
-async def write(curated: list[CuratedArticle]) -> NewsletterContent:
-    """선별된 기사로 뉴스레터 본문 작성"""
+async def write(curated: list[CuratedArticle], feedback: str | None = None) -> NewsletterContent:
+    """선별된 기사로 뉴스레터 본문 작성. feedback이 있으면 재작성 요청에 반영."""
     curated_json = json.dumps(
         [a.model_dump() for a in curated],
         ensure_ascii=False,
         indent=2,
     )
 
+    prompt = f"다음 기사들을 뉴스레터로 작성해주세요:\n\n{curated_json}"
+    if feedback:
+        prompt += f"\n\n[품질 검수 피드백 - 반드시 반영하세요]\n{feedback}"
+
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=f"다음 기사들을 뉴스레터로 작성해주세요:\n\n{curated_json}",
+        contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
             response_mime_type="application/json",
@@ -107,7 +117,7 @@ async def write(curated: list[CuratedArticle]) -> NewsletterContent:
     )
 
     raw = _strip_json_fences(response.text)
-    parsed = json.loads(raw)
+    parsed = json_repair.loads(raw)
 
     articles = [
         NewsletterArticle(**{**a, "category": curated[i].category})

@@ -1,4 +1,5 @@
 import json
+import json_repair
 import logging
 from datetime import datetime
 
@@ -19,34 +20,35 @@ SYSTEM_INSTRUCTION = """당신은 수입차 딜러사 KCC오토그룹의 사내 
 
 [기사 카테고리별 작성 톤]
 
-차량 소식 (취급 브랜드 신차·업데이트):
+차량 (취급 브랜드 신차·업데이트·리콜):
 - "이번 신차에서 고객이 가장 먼저 물어볼 포인트"를 중심으로 서술
 - 사양 변경, 가격, 경쟁 모델 대비 포지셔닝을 간결하게 정리
 - 리콜·서비스 캠페인의 경우 고객 안내 시 유의할 점 포함
 
-시장 트렌드 (수입차 시장·소비자 트렌드):
+시장 (수입차 시장 동향·소비자 트렌드):
 - 판매 수치나 트렌드가 현장 영업에 어떤 의미인지 해석
+- 가격 변화(인상·인하), 경쟁 브랜드 동향은 자사 브랜드와의 비교 관점 포함
 - "요즘 고객들이 이런 걸 따져본다"는 관점으로 작성
-- 경쟁 브랜드 동향은 자사 브랜드와의 비교 관점 포함
 
-정책·전기차 (전기차·기술·정책):
-- 복잡한 정책·기술 내용을 고객 응대 언어로 쉽게 풀어쓰기
-- "고객이 보조금·충전 얘기 꺼내면 이렇게 답하면 된다" 식의 실용적 관점
-- 취급 브랜드의 EV 라인업과 연결해서 설명
+혜택 (보조금·할인·정책):
+- 복잡한 정책·혜택 내용을 고객 응대 언어로 명확하게 풀어쓰기
+- "고객이 보조금·할인 얘기 꺼내면 이렇게 답하면 된다" 식의 실용적 관점
+- 혜택의 구체적 금액·기간·조건을 포함해 고객에게 즉시 전달 가능하도록
 
 ---
 
 [필드별 작성 기준]
 
-body (400~600자):
+body (450~650자, 검수 기준 400자 이상):
 - 첫 문장: 현장 직원이 "이거 알아야겠다" 싶게 만드는 핵심 포인트로 시작
 - 중간: 배경·수치·맥락을 1~2문장으로 간결하게
 - 끝: 영업·서비스 현장에서 활용할 수 있는 인사이트로 마무리
-- 톤: 선배 직원이 팀 단톡에 공유하듯 친근하고 실용적으로
+- 톤: 전문적이고 신뢰감 있게, 현장 직원이 읽기 쉽고 바로 활용할 수 있는 문체
 
-summary (30자 이내):
+summary (25자 이내, 검수 기준 30자):
 - 현장 직원이 동료에게 한마디로 전달할 수 있는 핵심
-- "~가 바뀐다", "~를 잡아라", "~를 주목하라" 식의 행동 지향적 표현
+- "~가 바뀐다", "~를 확인하라", "~를 주목하라" 식의 행동 지향적 표현
+- 반드시 25자 이내로 작성할 것 (공백 포함)
 
 image_prompt (영어):
 - 자동차 관련 미니멀 플랫 일러스트 스타일
@@ -66,12 +68,12 @@ image_prompt (영어):
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
-  "intro": "이번 주 뉴스레터 인트로 문구 (1~2문장, 현장 직원에게 말 걸듯이)",
+  "intro": "이번 주 뉴스레터 인트로 문구 (1~2문장, 현장 직원에게 업무적으로 말 걸듯이)",
   "articles": [
     {
       "headline": "클릭을 유도하는 한국어 헤드라인",
-      "body": "400~600자 한국어 본문",
-      "summary": "30자 이내 한줄 요약",
+      "body": "450~650자 한국어 본문",
+      "summary": "25자 이내 한줄 요약",
       "original_link": "원문 URL",
       "category": "카테고리",
       "image_prompt": "Minimalist flat illustration, ..."
@@ -88,17 +90,21 @@ def _strip_json_fences(text: str) -> str:
     return text.strip()
 
 
-async def write(curated: list[CuratedArticle]) -> NewsletterContent:
-    """선별된 자동차 기사로 뉴스레터 본문 작성"""
+async def write(curated: list[CuratedArticle], feedback: str | None = None) -> NewsletterContent:
+    """선별된 자동차 기사로 뉴스레터 본문 작성. feedback이 있으면 재작성 요청에 반영."""
     curated_json = json.dumps(
         [a.model_dump() for a in curated],
         ensure_ascii=False,
         indent=2,
     )
 
+    prompt = f"다음 기사들을 뉴스레터로 작성해주세요:\n\n{curated_json}"
+    if feedback:
+        prompt += f"\n\n[품질 검수 피드백 - 반드시 반영하세요]\n{feedback}"
+
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=f"다음 기사들을 뉴스레터로 작성해주세요:\n\n{curated_json}",
+        contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
             response_mime_type="application/json",
@@ -106,7 +112,7 @@ async def write(curated: list[CuratedArticle]) -> NewsletterContent:
     )
 
     raw = _strip_json_fences(response.text)
-    parsed = json.loads(raw)
+    parsed = json_repair.loads(raw)
 
     # AI가 임의로 카테고리를 바꾸지 않도록 큐레이터가 정한 값 그대로 사용
     articles = [

@@ -12,11 +12,14 @@ from src.storage.file_store import save_collected
 logger = logging.getLogger(__name__)
 
 RSS_SOURCES = {
-    "오토데일리":      "http://www.autodaily.co.kr/rss/allArticle.xml",
-    "모터그래프":      "https://www.motorgraph.com/rss/allArticle.xml",
-    "헤럴드경제 자동차": "https://biz.heraldcorp.com/rss/category/car.xml",
+    # 국내 — 수입차·시장 중심
+    "모터그래프":  "https://www.motorgraph.com/rss/allArticle.xml",
+    "오토헤럴드":  "http://www.autoherald.co.kr/rss/allArticle.xml",
+    # 해외 — 신차·브랜드
     "Car and Driver": "https://www.caranddriver.com/rss/all.xml/",
-    "Motor Trend":    "https://www.motortrend.com/feed/",
+    "Motor1":         "https://www.motor1.com/rss/news/all/",
+    # 해외 — 전기차·혜택·정책
+    "Electrek":       "https://electrek.co/feed/",
 }
 
 
@@ -86,6 +89,12 @@ async def collect() -> list[CollectedArticle]:
         if a.link not in seen_links:
             seen_links.add(a.link)
             unique_articles.append(a)
+
+    # 최신순 정렬 (소스 순서 편향 제거)
+    unique_articles.sort(
+        key=lambda a: _parse_date({"published": a.published_date}) or datetime.min,
+        reverse=True,
+    )
 
     logger.info(f"자동차 뉴스 수집 완료: {len(unique_articles)}건 (중복 제거 후)")
     save_collected(unique_articles)

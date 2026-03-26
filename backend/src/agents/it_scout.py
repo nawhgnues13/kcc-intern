@@ -12,18 +12,17 @@ from src.storage.file_store import save_collected
 logger = logging.getLogger(__name__)
 
 RSS_SOURCES = {
-    # 심층 분석 / 리서치
+    # 트렌드 — 비개발자도 읽기 쉬운 IT·테크 소식
+    "TechCrunch": "https://techcrunch.com/feed/",
+    "The Verge":  "https://www.theverge.com/rss/index.xml",
+
+    # 실무 — 개발자·실무자 중심
+    "InfoQ":       "https://feed.infoq.com",
+    "Hacker News": "https://hnrss.org/best?count=30",
+
+    # 인사이트 — 배경·원리·산업 영향까지 다루는 심층 분석
     "Ars Technica":          "https://feeds.arstechnica.com/arstechnica/index",
     "MIT Technology Review": "https://www.technologyreview.com/feed/",
-
-    # 개발자용
-    "Hacker News": "https://hnrss.org/best?count=30",
-    "InfoQ":       "https://feed.infoq.com",
-    "Dev.to":      "https://dev.to/feed",
-
-    # 일반인용
-    "The Verge":   "https://www.theverge.com/rss/index.xml",
-    "TechCrunch":  "https://techcrunch.com/feed/",
 }
 
 
@@ -94,6 +93,12 @@ async def collect() -> list[CollectedArticle]:
         if a.link not in seen_links:
             seen_links.add(a.link)
             unique_articles.append(a)
+
+    # 최신순 정렬 (소스 순서 편향 제거)
+    unique_articles.sort(
+        key=lambda a: _parse_date({"published": a.published_date}) or datetime.min,
+        reverse=True,
+    )
 
     logger.info(f"총 수집 완료: {len(unique_articles)}건 (중복 제거 후)")
     save_collected(unique_articles)
