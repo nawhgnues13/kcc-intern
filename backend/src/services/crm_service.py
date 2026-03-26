@@ -98,6 +98,12 @@ def _to_employee_response(employee: Employee, linked_user: User | None) -> Emplo
     )
 
 
+def _normalize_company_code(code: str) -> str:
+    """KCC_AUTOGROUP_SERVICE / kcc_autogroup → KCC_AUTOGROUP (대문자 + 앞 두 세그먼트)"""
+    parts = code.upper().split("_")
+    return "_".join(parts[:2])
+
+
 def list_company_codes(*, db: Session) -> list[str]:
     rows = db.execute(
         select(Employee.company_code)
@@ -105,7 +111,14 @@ def list_company_codes(*, db: Session) -> list[str]:
         .distinct()
         .order_by(Employee.company_code)
     ).scalars().all()
-    return list(rows)
+    seen: set[str] = set()
+    result: list[str] = []
+    for code in rows:
+        normalized = _normalize_company_code(code)
+        if normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+    return result
 
 
 def list_customers(*, db: Session, employee_email: str | None = None) -> CustomerListResponse:
@@ -172,7 +185,7 @@ def list_employees(
             )
         )
     if company_code:
-        stmt = stmt.where(Employee.company_code == company_code)
+        stmt = stmt.where(Employee.company_code.ilike(f"{company_code}%"))
     if department_code:
         stmt = stmt.where(Employee.department_code == department_code)
     if branch_name:

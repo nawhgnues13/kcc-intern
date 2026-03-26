@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Mail, X, Send, Plus, Users, UserCheck, Building2, ChevronDown } from "lucide-react";
 import { ModalLayout } from "../../../components/shared/ModalLayout";
 import { recipientService, EmailRecipient } from "../../../services/api/recipientService";
@@ -58,13 +58,20 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ sentCount: number; totalCount: number } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [manualEmailInput, setManualEmailInput] = useState("");
+  const [manualRecipients, setManualRecipients] = useState<EmailRecipient[]>([]);
+  const [manualInputError, setManualInputError] = useState<string | null>(null);
 
   const pickerRef = useRef<HTMLDivElement>(null);
+  const manualInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setSubject(title);
       setGroupRecipients(new Map());
+      setManualRecipients([]);
+      setManualEmailInput("");
+      setManualInputError(null);
       setSendResult(null);
       setSendError(null);
       setShowPicker(false);
@@ -95,6 +102,13 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
           seen.add(key);
           result.push(r);
         }
+      }
+    }
+    for (const r of manualRecipients) {
+      const key = r.email.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(r);
       }
     }
     return result;
@@ -136,6 +150,38 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
       next.delete(group);
       return next;
     });
+  };
+
+  const isValidEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const handleAddManualEmail = () => {
+    const email = manualEmailInput.trim();
+    if (!email) return;
+    if (!isValidEmail(email)) {
+      setManualInputError("올바른 이메일 형식이 아닙니다.");
+      return;
+    }
+    const alreadyAdded = allRecipients.some((r) => r.email.toLowerCase() === email.toLowerCase());
+    if (alreadyAdded) {
+      setManualInputError("이미 추가된 이메일입니다.");
+      return;
+    }
+    setManualRecipients((prev) => [...prev, { name: "", email }]);
+    setManualEmailInput("");
+    setManualInputError(null);
+    manualInputRef.current?.focus();
+  };
+
+  const handleManualKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddManualEmail();
+    }
+  };
+
+  const handleRemoveManualRecipient = (email: string) => {
+    setManualRecipients((prev) => prev.filter((r) => r.email !== email));
   };
 
   const handleSend = async () => {
@@ -192,7 +238,11 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
             {/* 받는 사람 */}
             <div>
               <label className="text-sm font-semibold text-slate-700 block mb-2">받는 사람</label>
-              <div className="w-full min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center gap-2">
+              <div
+                className="w-full min-h-[44px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center gap-2 cursor-text"
+                onClick={() => manualInputRef.current?.focus()}
+              >
+                {/* 그룹 칩 */}
                 {addedGroups.map((group) => (
                   <span
                     key={group}
@@ -202,7 +252,23 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
                     {getGroupLabel(group)}
                     <span className="opacity-60">({groupRecipients.get(group)?.length ?? 0}명)</span>
                     <button
-                      onClick={() => handleRemoveGroup(group)}
+                      onClick={(e) => { e.stopPropagation(); handleRemoveGroup(group); }}
+                      className="ml-0.5 hover:opacity-70 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+
+                {/* 수동 입력 이메일 칩 */}
+                {manualRecipients.map((r) => (
+                  <span
+                    key={r.email}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-pink-100 text-pink-700"
+                  >
+                    {r.email}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRemoveManualRecipient(r.email); }}
                       className="ml-0.5 hover:opacity-70 transition-opacity"
                     >
                       <X className="w-3 h-3" />
@@ -214,19 +280,30 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
                   <span className="text-xs text-slate-400 animate-pulse">불러오는 중...</span>
                 )}
 
+                {/* 인라인 이메일 직접 입력 */}
+                <input
+                  ref={manualInputRef}
+                  type="email"
+                  value={manualEmailInput}
+                  onChange={(e) => { setManualEmailInput(e.target.value); setManualInputError(null); }}
+                  onKeyDown={handleManualKeyDown}
+                  placeholder={addedGroups.length === 0 && manualRecipients.length === 0 ? "이메일 입력 후 Enter, 또는 그룹 추가" : ""}
+                  className="flex-1 min-w-[160px] bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400 py-0.5"
+                />
+
+                {/* 그룹 추가 드롭다운 */}
                 {hasAnyAvailable && !loadingGroup && (
                   <div className="relative" ref={pickerRef}>
                     <button
-                      onClick={() => { setShowPicker((v) => !v); setShowEmployeeSubmenu(false); }}
+                      onClick={(e) => { e.stopPropagation(); setShowPicker((v) => !v); setShowEmployeeSubmenu(false); }}
                       className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-[#3721ED] transition-colors px-1.5 py-1 rounded-lg hover:bg-[#3721ED]/5"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      추가
+                      그룹 추가
                       <ChevronDown className="w-3 h-3" />
                     </button>
                     {showPicker && (
                       <div className="absolute top-full left-0 mt-1 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-10 overflow-hidden">
-                        {/* 전체 직원 (서브메뉴) */}
                         {showEmployeesMenu && (
                           <div className="relative">
                             <button
@@ -264,7 +341,6 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
                             )}
                           </div>
                         )}
-                        {/* 전체 고객 */}
                         {showCustomers && (
                           <button
                             onClick={() => handleAddGroup("customers")}
@@ -274,7 +350,6 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
                             전체 고객
                           </button>
                         )}
-                        {/* 내 고객 */}
                         {showMyCustomers && (
                           <button
                             onClick={() => handleAddGroup("my_customers")}
@@ -289,6 +364,9 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
                   </div>
                 )}
               </div>
+              {manualInputError && (
+                <p className="text-xs text-rose-500 mt-1.5">{manualInputError}</p>
+              )}
               {allRecipients.length > 0 && (
                 <p className="text-xs text-slate-400 mt-1.5">총 {allRecipients.length}명 (중복 제거)</p>
               )}

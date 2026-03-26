@@ -82,12 +82,14 @@ Newsletter state machine: `pending → approved → sent` or `pending → reject
 ### Frontend Architecture
 
 ```
-Pages (src/pages/) — top-level route components
-  Features (src/features/) — feature-specific logic and UI
-    Services (src/services/api/) — Axios API calls
-    Store (src/store/) — Zustand global state (auth persisted to localStorage)
-    Hooks (src/hooks/) — local state and business logic
-  Components (src/components/) — shared/layout UI elements
+src/
+  pages/       — top-level route components
+  features/    — feature-specific logic and UI (newsletter, crm, automation, etc.)
+  components/  — shared/layout UI elements
+  services/api/ — Axios API calls
+  store/       — Zustand global state (auth persisted to localStorage)
+  hooks/       — local state and business logic
+  types/       — TypeScript type definitions
 ```
 
 **Key rules (from AGENTS.md):**
@@ -115,7 +117,7 @@ Copy `backend/.env.example` to `backend/.env` and fill in:
 
 ```
 GEMINI_API_KEY=          # Google AI Studio
-DATABASE_URL=            # PostgreSQL connection string
+DATABASE_URL=            # PostgreSQL e.g. postgresql+psycopg://postgres:postgres@localhost:5432/kcc_intern
 SLACK_BOT_TOKEN=         # xoxb-...
 SLACK_SIGNING_SECRET=
 SLACK_APP_TOKEN=         # xapp-... (Socket Mode)
@@ -128,8 +130,3 @@ AWS_ACCESS_KEY_ID=       # Optional S3
 AWS_SECRET_ACCESS_KEY=   # Optional S3
 AWS_S3_BUCKET=           # Optional S3
 ```
-
-## Branch Info
-
-- Main feature branch: `feat/ai-newsletter-automation`
-- Current branch: `feat/email-api`
