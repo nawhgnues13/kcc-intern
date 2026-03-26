@@ -59,6 +59,19 @@ def _shorten(value: str | None, limit: int = 80) -> str:
     return normalized[: limit - 3].rstrip() + "..."
 
 
+def _anonymize_customer_reference(value: str | None, customer_name: str | None) -> str:
+    if not value:
+        return ""
+
+    normalized = value
+    trimmed_name = (customer_name or "").strip()
+    if trimmed_name:
+        normalized = normalized.replace(f"{trimmed_name} 고객님", "고객님")
+        normalized = normalized.replace(trimmed_name, "고객님")
+
+    return normalized
+
+
 def _load_sales_source(db: Session, source_id: UUID) -> dict[str, Any]:
     registration = db.scalar(
         select(SalesRegistration).where(
@@ -115,12 +128,12 @@ def _load_sales_source(db: Session, source_id: UUID) -> dict[str, Any]:
     source_text = (
         "Source type: vehicle purchase\n"
         f"Employee: {registration.employee_name}\n"
-        f"Customer: {registration.customer_name}\n"
+        "Customer: 고객님\n"
         f"Vehicle model: {registration.vehicle_model}\n"
         f"Sale price: {registration.sale_price}\n"
         f"Sale date: {registration.sale_date.isoformat()}\n"
         f"Branch: {registration.branch_name or ''}\n"
-        f"Note: {registration.note or ''}"
+        f"Note: {_anonymize_customer_reference(registration.note, registration.customer_name)}"
     )
     described_photos = [photo["photoDescription"] for photo in serialized_photos if photo.get("photoDescription")]
     if described_photos:
@@ -198,13 +211,13 @@ def _load_service_source(db: Session, source_id: UUID) -> dict[str, Any]:
     source_text = (
         "Source type: vehicle service\n"
         f"Employee: {registration.employee_name}\n"
-        f"Customer: {registration.customer_name}\n"
+        "Customer: 고객님\n"
         f"Vehicle model: {registration.vehicle_model}\n"
         f"Service date: {registration.service_date.isoformat()}\n"
-        f"Repair details: {registration.repair_details}\n"
+        f"Repair details: {_anonymize_customer_reference(registration.repair_details, registration.customer_name)}\n"
         f"Repair cost: {registration.repair_cost}\n"
         f"Branch: {registration.branch_name or ''}\n"
-        f"Note: {registration.note or ''}"
+        f"Note: {_anonymize_customer_reference(registration.note, registration.customer_name)}"
     )
     described_photos = [photo["photoDescription"] for photo in serialized_photos if photo.get("photoDescription")]
     if described_photos:
@@ -284,15 +297,15 @@ def _load_grooming_source(db: Session, source_id: UUID) -> dict[str, Any]:
     source_text = (
         "Source type: pet grooming\n"
         f"Employee: {registration.employee_name}\n"
-        f"Customer: {registration.customer_name}\n"
+        "Customer: 고객님\n"
         f"Pet name: {registration.pet_name}\n"
         f"Pet type: {registration.pet_type or ''}\n"
         f"Breed: {registration.breed or ''}\n"
         f"Grooming date: {registration.grooming_date.isoformat()}\n"
-        f"Grooming details: {registration.grooming_details}\n"
+        f"Grooming details: {_anonymize_customer_reference(registration.grooming_details, registration.customer_name)}\n"
         f"Price: {registration.price}\n"
         f"Branch: {registration.branch_name or ''}\n"
-        f"Note: {registration.note or ''}"
+        f"Note: {_anonymize_customer_reference(registration.note, registration.customer_name)}"
     )
     described_photos = [photo["photoDescription"] for photo in serialized_photos if photo.get("photoDescription")]
     if described_photos:
@@ -648,6 +661,8 @@ def get_generation_context_for_task(*, db: Session, task_id: UUID) -> dict[str, 
             f"Template style: {task.template_style or ''}\n"
             "Use the registered source data and registered real photos as the primary factual and visual basis.\n"
             "Do not invent customer-specific details, repair details, pet conditions, or options that are not present.\n"
+            "Never mention a real customer name in the title, body, CTA, hashtags, captions, or Instagram post text.\n"
+            "Always replace customer names with generic wording such as '고객님'.\n"
             "Use the following source data as the factual basis.\n\n"
             f"{source_bundle['sourceText']}"
         ),

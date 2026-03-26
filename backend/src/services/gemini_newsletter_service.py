@@ -23,6 +23,8 @@ Analyze the user's request together with any attached PDFs, images, and URLs.
 Write a readable, substantial Korean article in the requested format.
 Do not return plain prose only. Mix heading, paragraph, quote, and image blocks when helpful.
 Return only valid JSON.
+Never expose a real customer or client's personal name from CRM-style inputs in the generated output.
+When a customer is referenced, use generic honorific wording such as '고객님' instead of a real name.
 Never invent arbitrary public placeholder image URLs.
 Never return local placeholder file names such as attached_image_1.png, image1.png, or similar.
 If you want an image block but do not have a reliable attached source URL, set src to an empty string and describe the image in alt.
@@ -148,6 +150,8 @@ CRM_GENERATION_GUIDANCE = """
 - Treat the CRM source data as the primary source of truth.
 - Use the uploaded or registered photos as the visual basis whenever possible.
 - Do not invent customer-specific facts, exact prices, exact options, exact repair parts, or exact pet conditions that are not present in the source data.
+- Never expose a real customer's name in the generated title, body, CTA, hashtags, or instagram post text.
+- Replace any customer-name reference with generic wording such as "고객님".
 - If information is missing, write naturally around confirmed facts instead of guessing.
 """.strip()
 
