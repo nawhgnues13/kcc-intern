@@ -32,6 +32,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# google-genai SDK 내부 로그 (AFC 등) 억제
+logging.getLogger("google_genai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler(timezone=ZoneInfo("Asia/Seoul"))

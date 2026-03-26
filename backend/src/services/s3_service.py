@@ -162,7 +162,6 @@ def upload_pipeline_image(*, image_bytes: bytes, object_key: str, content_type: 
             Params={"Bucket": settings.aws_s3_bucket, "Key": object_key},
             ExpiresIn=604800,  # 7일
         )
-        _logger.info("파이프라인 이미지 S3 업로드 완료: %s...", presigned_url[:80])
         return presigned_url
     except Exception as exc:
         _logger.warning("S3 업로드 실패: %s", exc)

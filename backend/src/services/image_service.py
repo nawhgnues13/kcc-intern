@@ -92,7 +92,7 @@ async def get_article_image(
     """Pick an article image from OG metadata or generate one with Gemini."""
     og_url = await extract_og_image(article_url)
     if og_url:
-        logger.info("OG 이미지 사용: %s...", og_url[:60])
+        logger.debug("OG 이미지 사용: %s...", og_url[:60])
         return ImageInfo(type="og", url=og_url)
 
     if image_prompt:
@@ -101,7 +101,7 @@ async def get_article_image(
             save_file = Path(save_path)
             save_file.parent.mkdir(parents=True, exist_ok=True)
             save_file.write_bytes(image_bytes)
-            logger.info("Gemini 이미지 생성: %s", save_path)
+            logger.debug("Gemini 이미지 생성: %s", save_path)
             return ImageInfo(type="generated", file_path=save_path)
         except Exception as exc:
             logger.warning("이미지 생성 실패: %s", exc)
@@ -150,7 +150,7 @@ async def upload_image_to_s3(img: ImageInfo, object_key: str) -> ImageInfo:
     try:
         s3_url = upload_pipeline_image(image_bytes=image_bytes, object_key=full_key, content_type=content_type)
         if s3_url:
-            logger.info("이미지 S3 업로드 완료: %s", s3_url[:80])
+            logger.debug("이미지 S3 업로드 완료: %s", s3_url[:80])
             return ImageInfo(type="og", url=s3_url)
     except Exception as exc:
         logger.warning("S3 업로드 실패, 원본 유지: %s", exc)
