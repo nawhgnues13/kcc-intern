@@ -1,4 +1,5 @@
 import json
+import json_repair
 import logging
 
 from google import genai
@@ -78,7 +79,7 @@ async def collect_by_keyword(keyword: str) -> list[CollectedArticle]:
     )
 
     raw = _strip_json_fences(response.text)
-    parsed = json.loads(raw)
+    parsed = json_repair.loads(raw)
 
     articles = [
         CollectedArticle(

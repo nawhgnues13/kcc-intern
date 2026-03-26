@@ -1,4 +1,5 @@
 import json
+import json_repair
 import logging
 from datetime import datetime
 
@@ -21,15 +22,16 @@ SYSTEM_INSTRUCTION = """당신은 KCC그룹 사내 소식지 에디터입니다.
 
 [작성 기준]
 
-body (300~500자):
+body (350~500자, 검수 기준 300자 이상):
 - 첫 문장: 이 소식이 왜 중요한지, 무엇이 달라지는지 핵심을 먼저
 - 중간: 배경·주요 내용을 간결하게 (수치, 브랜드명, 이벤트명 등 구체적 정보 포함)
 - 끝: 임직원 관점에서 어떤 의미인지 한 줄로 마무리
 - 톤: 공식적이지만 딱딱하지 않게, 사내 공지 느낌으로
 
-summary (30자 이내):
+summary (25자 이내, 검수 기준 30자):
 - 이 소식을 한 줄로 전달할 때 쓸 수 있는 표현
 - "~달성", "~출시", "~시작" 등 명확한 동사로 끝내기
+- 반드시 25자 이내로 작성할 것 (공백 포함)
 
 image_prompt (영어):
 - KCC 기업 이미지에 맞는 미니멀 플랫 일러스트
@@ -73,17 +75,21 @@ def _strip_json_fences(text: str) -> str:
 
 
 
-async def write(curated: list[CuratedArticle]) -> NewsletterContent:
-    """선별된 KCC 블로그 게시글로 소식지 본문 작성"""
+async def write(curated: list[CuratedArticle], feedback: str | None = None) -> NewsletterContent:
+    """선별된 KCC 블로그 게시글로 소식지 본문 작성. feedback이 있으면 재작성 요청에 반영."""
     curated_json = json.dumps(
         [a.model_dump() for a in curated],
         ensure_ascii=False,
         indent=2,
     )
 
+    prompt = f"다음 KCC 블로그 게시글들을 사내 소식지로 작성해주세요:\n\n{curated_json}"
+    if feedback:
+        prompt += f"\n\n[품질 검수 피드백 - 반드시 반영하세요]\n{feedback}"
+
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=f"다음 KCC 블로그 게시글들을 사내 소식지로 작성해주세요:\n\n{curated_json}",
+        contents=prompt,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
             response_mime_type="application/json",
@@ -91,7 +97,7 @@ async def write(curated: list[CuratedArticle]) -> NewsletterContent:
     )
 
     raw = _strip_json_fences(response.text)
-    parsed = json.loads(raw)
+    parsed = json_repair.loads(raw)
 
     articles = [
         NewsletterArticle(**{**a, "category": curated[i].category})

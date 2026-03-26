@@ -20,3 +20,4 @@ python-dotenv>=1.0.0
 tzdata>=2024.1
 json-repair>=0.30.0
 Pillow>=11.0.0
+langgraph>=0.2.0

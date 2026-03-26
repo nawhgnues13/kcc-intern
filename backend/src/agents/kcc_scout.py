@@ -34,12 +34,9 @@ def _parse_date(entry) -> datetime | None:
 
 
 async def collect() -> list[CollectedArticle]:
-    """KCC 공식 블로그에서 전월 게시글 수집"""
-    today = datetime.now()
-    # 전월 1일 ~ 전월 말일
-    first_day_this_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    last_day_prev_month = first_day_this_month - timedelta(days=1)
-    first_day_prev_month = last_day_prev_month.replace(day=1)
+    """KCC 공식 블로그에서 2026년 1월 1일~오늘 게시글 수집 (테스트용 — 운영 시 전월로 복구)"""
+    first_day = datetime(2026, 1, 1)
+    last_day = datetime.now()
     articles = []
 
     try:
@@ -50,7 +47,7 @@ async def collect() -> list[CollectedArticle]:
         feed = feedparser.parse(response.text)
         for entry in feed.entries:
             pub_date = _parse_date(entry)
-            if pub_date and not (first_day_prev_month <= pub_date <= last_day_prev_month):
+            if pub_date and not (first_day <= pub_date <= last_day):
                 continue
             articles.append(CollectedArticle(
                 title=entry.get("title", "").strip(),
@@ -60,7 +57,7 @@ async def collect() -> list[CollectedArticle]:
                 source="KCC공식블로그",
             ))
 
-        logger.info(f"KCC 블로그 수집 완료: {len(articles)}건 ({first_day_prev_month.strftime('%Y년 %m월')})")
+        logger.info(f"KCC 블로그 수집 완료: {len(articles)}건 (2026년 1월 1일~오늘)")
     except Exception as e:
         logger.warning(f"KCC 블로그 수집 실패: {e}")
 
