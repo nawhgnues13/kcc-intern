@@ -14,7 +14,7 @@ export function Sidebar() {
 
   const crmItems = [
     { label: "직원 관리", path: "/employees", icon: <Users className="w-5 h-5" /> },
-    { label: "차량 구매 관리", path: "/crm/sales", icon: <Car className="w-5 h-5" /> },
+    { label: "차량 판매 관리", path: "/crm/sales", icon: <Car className="w-5 h-5" /> },
     { label: "차량 수리 관리", path: "/crm/service", icon: <Wrench className="w-5 h-5" /> },
     { label: "애견 미용 관리", path: "/crm/grooming", icon: <Scissors className="w-5 h-5" /> },
   ];

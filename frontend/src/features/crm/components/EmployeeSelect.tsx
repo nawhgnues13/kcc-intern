@@ -6,9 +6,10 @@ interface EmployeeSelectProps {
   value: string;
   onChange: (employeeId: string) => void;
   required?: boolean;
+  filterDepartmentCode?: string;
 }
 
-export function EmployeeSelect({ value, onChange, required = false }: EmployeeSelectProps) {
+export function EmployeeSelect({ value, onChange, required = false, filterDepartmentCode }: EmployeeSelectProps) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   
@@ -58,9 +59,10 @@ export function EmployeeSelect({ value, onChange, required = false }: EmployeeSe
   const selectedEmployee = employees.find(e => e.employeeId === value);
   
   const filteredEmployees = employees.filter(emp => {
+    if (filterDepartmentCode && emp.departmentCode !== filterDepartmentCode) return false;
     const searchLower = searchTerm.toLowerCase();
     const deptName = deptMapping[emp.departmentCode] || emp.departmentCode;
-    return emp.name.toLowerCase().includes(searchLower) || 
+    return emp.name.toLowerCase().includes(searchLower) ||
            (emp.branchName && emp.branchName.toLowerCase().includes(searchLower)) ||
            deptName.toLowerCase().includes(searchLower) ||
            (emp.position && emp.position.toLowerCase().includes(searchLower));
@@ -100,7 +102,7 @@ export function EmployeeSelect({ value, onChange, required = false }: EmployeeSe
           <div className="max-h-60 overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
             {filteredEmployees.length === 0 ? (
               <div className="px-3 py-4 text-center text-sm text-slate-500">
-                검색된 직원이 없습니다.
+                {filterDepartmentCode === "poodly" ? "등록된 미용사가 없습니다." : filterDepartmentCode === "sales" ? "등록된 영업 직원이 없습니다." : filterDepartmentCode === "service_center" ? "등록된 서비스센터 직원이 없습니다." : "검색된 직원이 없습니다."}
               </div>
             ) : (
               filteredEmployees.map(emp => {

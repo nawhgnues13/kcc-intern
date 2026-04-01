@@ -26,7 +26,7 @@ interface ResultDetailDrawerProps {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  sale: "차량 구매",
+  sale: "차량 판매",
   service: "차량 수리",
   grooming: "애견 미용",
 };

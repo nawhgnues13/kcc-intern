@@ -12,7 +12,7 @@ interface ResultCardProps {
 function getSourceTypeLabel(type: string) {
   switch (type) {
     case "sale":
-      return "차량 구매";
+      return "차량 판매";
     case "service":
       return "차량 수리";
     case "grooming":

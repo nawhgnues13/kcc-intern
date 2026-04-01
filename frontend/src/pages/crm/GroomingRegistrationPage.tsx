@@ -219,8 +219,8 @@ export function GroomingRegistrationPage() {
                   <h3 className="text-sm font-bold text-slate-700">미용 및 결제 정보</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                      <label className="text-xs font-semibold text-slate-500 block mb-1">담당 직원 (스타일리스)</label>
-                      <EmployeeSelect required value={formData.employee_id} onChange={(id) => setFormData({...formData, employee_id: id})} />
+                      <label className="text-xs font-semibold text-slate-500 block mb-1">담당 미용사</label>
+                      <EmployeeSelect required value={formData.employee_id} onChange={(id) => setFormData({...formData, employee_id: id})} filterDepartmentCode="poodly" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-500 block mb-1">미용 일시</label>

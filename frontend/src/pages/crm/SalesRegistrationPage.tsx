@@ -145,7 +145,7 @@ export function SalesRegistrationPage() {
           <div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
               <Car className="w-8 h-8 text-[#3721ED]" />
-              차량 구매 등록
+              차량 판매 등록
             </h1>
             <p className="text-slate-500 mt-2">고객의 신차 출고 데이터를 빠르게 등록합니다.</p>
           </div>
@@ -163,12 +163,12 @@ export function SalesRegistrationPage() {
           columns={columns}
           isLoading={isLoading}
           onRowClick={handleOpenModal}
-          emptyMessage="차량 구매 이력이 없습니다."
+          emptyMessage="차량 판매 이력이 없습니다."
         />
 
         <ModalLayout isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidthClass="max-w-2xl">
           <div className="p-6 h-[85vh] flex flex-col">
-            <h2 className="text-xl font-bold text-slate-800 mb-6 shrink-0">{editingItem ? '구매 내역 수정' : '차량 구매 등록'}</h2>
+            <h2 className="text-xl font-bold text-slate-800 mb-6 shrink-0">{editingItem ? '판매 내역 수정' : '차량 판매 등록'}</h2>
             <div className="flex-1 overflow-y-auto pr-2 pb-6 space-y-6">
               <form id="salesForm" onSubmit={handleSubmit} className="space-y-6">
                 
@@ -195,7 +195,7 @@ export function SalesRegistrationPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <label className="text-xs font-semibold text-slate-500 block mb-1">담당 직원</label>
-                      <EmployeeSelect required value={formData.employee_id} onChange={(id) => setFormData({...formData, employee_id: id})} />
+                      <EmployeeSelect required value={formData.employee_id} onChange={(id) => setFormData({...formData, employee_id: id})} filterDepartmentCode="sales" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-500 block mb-1">차량 모델</label>

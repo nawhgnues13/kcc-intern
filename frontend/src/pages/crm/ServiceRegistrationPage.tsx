@@ -196,7 +196,7 @@ export function ServiceRegistrationPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <label className="text-xs font-semibold text-slate-500 block mb-1">담당 직원 (어드바이저)</label>
-                      <EmployeeSelect required value={formData.employee_id} onChange={(id) => setFormData({...formData, employee_id: id})} />
+                      <EmployeeSelect required value={formData.employee_id} onChange={(id) => setFormData({...formData, employee_id: id})} filterDepartmentCode="service_center" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-500 block mb-1">차량 모델</label>

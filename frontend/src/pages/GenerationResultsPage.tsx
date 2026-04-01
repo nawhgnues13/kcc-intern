@@ -29,7 +29,7 @@ type ResultViewMode =
   | "failed";
 
 const SOURCE_LABELS: Record<string, string> = {
-  sale: "차량 구매",
+  sale: "차량 판매",
   service: "차량 수리",
   grooming: "애견 미용",
 };
@@ -403,7 +403,7 @@ export function GenerationResultsPage() {
               className="cursor-pointer border-none bg-transparent text-slate-800 focus:ring-0"
             >
               <option value="all">전체</option>
-              <option value="sale">차량 구매</option>
+              <option value="sale">차량 판매</option>
               <option value="service">차량 수리</option>
               <option value="grooming">애견 미용</option>
             </select>
