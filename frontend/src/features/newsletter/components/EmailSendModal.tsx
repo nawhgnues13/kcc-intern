@@ -131,7 +131,7 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
       } else if (group === "customers") {
         recipients = await recipientService.getCustomerRecipients();
       } else if (group === "my_customers") {
-        recipients = await recipientService.getCustomerRecipients();
+        recipients = await recipientService.getCustomerRecipients(user!.email);
       } else {
         const code = group.replace("company:", "");
         recipients = await recipientService.getEmployeeRecipients(code);

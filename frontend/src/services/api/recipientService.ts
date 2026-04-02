@@ -18,8 +18,9 @@ export const recipientService = {
       .map((e) => ({ name: e.name, email: e.email! }));
   },
 
-  getCustomerRecipients: async (): Promise<EmailRecipient[]> => {
-    const res = await apiClient.get<{ items: EmailRecipient[] }>('/api/customers');
+  getCustomerRecipients: async (employeeEmail?: string): Promise<EmailRecipient[]> => {
+    const params = employeeEmail ? { employee_email: employeeEmail } : {};
+    const res = await apiClient.get<{ items: EmailRecipient[] }>('/api/customers', { params });
     return res.items;
   },
 };
