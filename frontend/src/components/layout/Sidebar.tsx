@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router";
-import { Sparkles, Home, PenSquare, Clock, Settings, BookOpen, Users, Car, Wrench, Scissors } from "lucide-react";
+import { Sparkles, Home, PenSquare, Clock, Settings, BookOpen, Users, Car, Wrench, Scissors, BarChart2 } from "lucide-react";
 
 export function Sidebar() {
   const location = useLocation();
@@ -17,6 +17,7 @@ export function Sidebar() {
     { label: "차량 판매 관리", path: "/crm/sales", icon: <Car className="w-5 h-5" /> },
     { label: "차량 수리 관리", path: "/crm/service", icon: <Wrench className="w-5 h-5" /> },
     { label: "애견 미용 관리", path: "/crm/grooming", icon: <Scissors className="w-5 h-5" /> },
+    { label: "판매 트렌드 분석", path: "/crm/trends", icon: <BarChart2 className="w-5 h-5" /> },
   ];
 
   return (
