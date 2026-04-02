@@ -1507,7 +1507,19 @@ async def send_newsletter(
     image_urls = _extract_image_urls(article.body_content)
     images = [ImageInfo(type="og", url=url) for url in image_urls]
 
-    recipient_dicts = [{"name": r.name, "email": r.email} for r in recipients]
+    # 수신거부한 이메일 필터링
+    from src.models.email_unsubscribe import EmailUnsubscribe
+    unsubscribed_emails = {
+        row.email.lower()
+        for row in db.query(EmailUnsubscribe.email).all()
+    }
+    skipped = [r.email for r in recipients if r.email.lower() in unsubscribed_emails]
+    filtered = [r for r in recipients if r.email.lower() not in unsubscribed_emails]
+
+    if not filtered:
+        raise HTTPException(status_code=422, detail=f"모든 수신자가 수신거부 상태입니다: {', '.join(skipped)}")
+
+    recipient_dicts = [{"name": r.name, "email": r.email} for r in filtered]
     success = await send_email(
         html=html,
         images=images,
@@ -1520,6 +1532,7 @@ async def send_newsletter(
 
     return NewsletterSendResponse(
         article_id=article_id,
-        sent_count=len(recipients),
+        sent_count=len(filtered),
         total_count=len(recipients),
+        skipped_emails=skipped,
     )

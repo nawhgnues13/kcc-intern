@@ -230,3 +230,4 @@ class NewsletterSendResponse(BaseModel):
     article_id: UUID
     sent_count: int
     total_count: int
+    skipped_emails: list[str] = []

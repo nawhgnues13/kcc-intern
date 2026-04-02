@@ -199,6 +199,11 @@ def list_employees(
     ]
     if is_linked is not None:
         items = [item for item in items if (item.linked_user_id is not None) == is_linked]
+
+    from src.models.email_unsubscribe import EmailUnsubscribe
+    unsubscribed = {row.email.lower() for row in db.query(EmailUnsubscribe.email).all()}
+    items = [item for item in items if not item.email or item.email.lower() not in unsubscribed]
+
     return EmployeeListResponse(items=items)
 
 
