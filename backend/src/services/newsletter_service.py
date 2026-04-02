@@ -1520,30 +1520,32 @@ async def send_newsletter(
         raise HTTPException(status_code=422, detail=f"모든 수신자가 수신거부 상태입니다: {', '.join(skipped)}")
 
     recipient_dicts = [{"name": r.name, "email": r.email} for r in filtered]
-    success = await send_email(
+    result = await send_email(
         html=html,
         images=images,
         subject=effective_subject,
         recipients=recipient_dicts,
     )
 
-    if not success:
+    if not result["success"]:
         raise HTTPException(status_code=502, detail="모든 수신자에게 이메일 발송에 실패했습니다.")
 
     from src.models.email_send_log import EmailSendLog
+    success_set = set(result["success"])
     for r in filtered:
         db.add(EmailSendLog(
             article_id=article_id,
             recipient_email=r.email,
             recipient_name=r.name,
             subject=effective_subject,
-            status="success",
+            status="success" if r.email in success_set else "failed",
         ))
     db.commit()
 
     return NewsletterSendResponse(
         article_id=article_id,
-        sent_count=len(filtered),
+        sent_count=len(result["success"]),
         total_count=len(recipients),
         skipped_emails=skipped,
+        failed_emails=result["failed"],
     )

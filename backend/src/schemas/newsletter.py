@@ -231,3 +231,4 @@ class NewsletterSendResponse(BaseModel):
     sent_count: int
     total_count: int
     skipped_emails: list[str] = []
+    failed_emails: list[str] = []

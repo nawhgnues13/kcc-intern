@@ -108,8 +108,8 @@ async def _send_via_resend(
     html: str,
     subject: str,
     recipients: list[dict],
-) -> bool:
-    """Resend API를 사용한 이메일 발송"""
+) -> dict[str, list[str]]:
+    """Resend API를 사용한 이메일 발송. {"success": [...], "failed": [...]} 반환"""
     import resend
 
     resend.api_key = settings.resend_api_key
@@ -134,9 +134,10 @@ async def _send_via_resend(
             return False
 
     results = await asyncio.gather(*[_send_one_resend(r) for r in recipients])
-    success_count = sum(results)
-    logger.info(f"Resend 이메일 발송 완료: {success_count}/{len(recipients)}명")
-    return success_count > 0
+    success = [r["email"] for r, ok in zip(recipients, results) if ok]
+    failed = [r["email"] for r, ok in zip(recipients, results) if not ok]
+    logger.info(f"Resend 이메일 발송 완료: {len(success)}/{len(recipients)}명")
+    return {"success": success, "failed": failed}
 
 
 async def send_email(
@@ -144,12 +145,13 @@ async def send_email(
     images: list[ImageInfo],
     subject: str,
     recipients: list[dict] | None = None,
-) -> bool:
+) -> dict[str, list[str]]:
     """
     HTML 뉴스레터 이메일 발송.
     recipients: [{"name": "...", "email": "..."}] 형태.
     None이면 .env의 EMAIL_TO로 단일 발송.
     RESEND_API_KEY가 설정되어 있으면 Resend, 없으면 Gmail SMTP 사용.
+    {"success": [...], "failed": [...]} 반환.
     """
     if not recipients:
         recipients = [{"name": "", "email": settings.email_to}]
@@ -166,7 +168,7 @@ async def send_email(
     send_tasks = [_send_one(msg) for msg in messages]
     results = await asyncio.gather(*send_tasks)
 
-    success_count = sum(results)
-    total = len(recipients)
-    logger.info(f"이메일 발송 완료: {success_count}/{total}명")
-    return success_count > 0
+    success = [r["email"] for r, ok in zip(recipients, results) if ok]
+    failed = [r["email"] for r, ok in zip(recipients, results) if not ok]
+    logger.info(f"이메일 발송 완료: {len(success)}/{len(recipients)}명")
+    return {"success": success, "failed": failed}
