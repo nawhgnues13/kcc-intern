@@ -224,6 +224,13 @@ class NewsletterSendRequest(BaseModel):
     html: Optional[str] = None
 
 
+class NewsletterResendRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    log_id: str
+    email: str
+
+
 class NewsletterSendResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 

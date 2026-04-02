@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { History, X, Loader2 } from "lucide-react";
+import { History, X, Loader2, RefreshCw } from "lucide-react";
 import { ModalLayout } from "../../../components/shared/ModalLayout";
 import { newsletterService } from "../../../services/api/newsletterService";
 
@@ -9,17 +9,36 @@ interface SendLogsModalProps {
   articleId: string;
 }
 
-export function SendLogsModal({ isOpen, onClose, articleId }: SendLogsModalProps) {
-  const [logs, setLogs] = useState<Array<{ id: string; recipientEmail: string; recipientName: string; subject: string; status: string; sentAt: string }>>([]);
-  const [loading, setLoading] = useState(false);
+type LogItem = { id: string; recipientEmail: string; recipientName: string; subject: string; status: string; sentAt: string };
 
-  useEffect(() => {
-    if (!isOpen) return;
+export function SendLogsModal({ isOpen, onClose, articleId }: SendLogsModalProps) {
+  const [logs, setLogs] = useState<LogItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState<string | null>(null);
+
+  const fetchLogs = () => {
     setLoading(true);
     newsletterService.getSendLogs(articleId)
       .then((res) => setLogs(res.items))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchLogs();
   }, [isOpen, articleId]);
+
+  const handleResend = async (logId: string, email: string) => {
+    setResendingEmail(email);
+    try {
+      await newsletterService.resendToRecipient(articleId, logId, email);
+      fetchLogs();
+    } catch {
+      // 에러 시 조용히 무시
+    } finally {
+      setResendingEmail(null);
+    }
+  };
 
   return (
     <ModalLayout isOpen={isOpen} onClose={onClose} maxWidthClass="max-w-lg">
@@ -45,6 +64,7 @@ export function SendLogsModal({ isOpen, onClose, articleId }: SendLogsModalProps
                 <th className="text-left pb-2 font-medium">수신자</th>
                 <th className="text-left pb-2 font-medium">발송 시각</th>
                 <th className="text-left pb-2 font-medium">상태</th>
+                <th className="pb-2" />
               </tr>
             </thead>
             <tbody>
@@ -61,6 +81,18 @@ export function SendLogsModal({ isOpen, onClose, articleId }: SendLogsModalProps
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${log.status === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                       {log.status === 'success' ? '성공' : '실패'}
                     </span>
+                  </td>
+                  <td className="py-2.5 text-right">
+                    {log.status === 'failed' && (
+                      <button
+                        onClick={() => handleResend(log.id, log.recipientEmail)}
+                        disabled={resendingEmail === log.recipientEmail}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-500 hover:text-[#3721ED] hover:bg-[#3721ED]/5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${resendingEmail === log.recipientEmail ? 'animate-spin' : ''}`} />
+                        재발송
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

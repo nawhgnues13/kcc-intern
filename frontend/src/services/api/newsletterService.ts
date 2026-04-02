@@ -101,4 +101,9 @@ export const newsletterService = {
   getSendLogs: async (articleId: string): Promise<{ items: Array<{ id: string; recipientEmail: string; recipientName: string; subject: string; status: string; sentAt: string }> }> => {
     return apiClient.get(`/api/newsletters/${articleId}/send-logs`);
   },
+
+  // 11. 특정 수신자 재발송
+  resendToRecipient: async (articleId: string, logId: string, email: string): Promise<{ email: string; status: string }> => {
+    return apiClient.post(`/api/newsletters/${articleId}/resend`, { logId, email });
+  },
 };

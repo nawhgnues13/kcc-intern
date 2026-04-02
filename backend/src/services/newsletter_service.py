@@ -1549,3 +1549,44 @@ async def send_newsletter(
         skipped_emails=skipped,
         failed_emails=result["failed"],
     )
+
+
+async def resend_to_recipient(
+    *,
+    db: Session,
+    article_id: UUID,
+    log_id: str,
+    email: str,
+) -> dict:
+    """발송 이력에서 특정 수신자에게 재발송"""
+    from src.models.email_send_log import EmailSendLog
+    from src.models.email_unsubscribe import EmailUnsubscribe
+    from uuid import UUID as _UUID
+
+    # 수신거부 확인
+    unsubscribed = db.query(EmailUnsubscribe).filter(EmailUnsubscribe.email == email.lower()).first()
+    if unsubscribed:
+        raise HTTPException(status_code=422, detail="수신거부된 이메일입니다.")
+
+    # 정확한 로그 행 조회
+    log = db.query(EmailSendLog).filter(EmailSendLog.id == _UUID(log_id)).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="발송 이력이 없습니다.")
+
+    article = _get_article(db, article_id)
+    html = _body_content_to_html(article.body_content, article.title)
+    image_urls = _extract_image_urls(article.body_content)
+    images = [ImageInfo(type="og", url=url) for url in image_urls]
+
+    result = await send_email(
+        html=html,
+        images=images,
+        subject=log.subject,
+        recipients=[{"name": log.recipient_name, "email": email}],
+    )
+
+    status = "success" if email in result["success"] else "failed"
+    log.status = status
+    db.commit()
+
+    return {"email": email, "status": status}
