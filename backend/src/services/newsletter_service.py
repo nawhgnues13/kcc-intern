@@ -1530,6 +1530,17 @@ async def send_newsletter(
     if not success:
         raise HTTPException(status_code=502, detail="모든 수신자에게 이메일 발송에 실패했습니다.")
 
+    from src.models.email_send_log import EmailSendLog
+    for r in filtered:
+        db.add(EmailSendLog(
+            article_id=article_id,
+            recipient_email=r.email,
+            recipient_name=r.name,
+            subject=effective_subject,
+            status="success",
+        ))
+    db.commit()
+
     return NewsletterSendResponse(
         article_id=article_id,
         sent_count=len(filtered),

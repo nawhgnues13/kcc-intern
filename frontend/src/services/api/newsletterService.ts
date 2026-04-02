@@ -93,7 +93,12 @@ export const newsletterService = {
     recipients: Array<{ name: string; email: string }>,
     subject?: string,
     html?: string,
-  ): Promise<{ articleId: string; sentCount: number; totalCount: number }> => {
+  ): Promise<{ articleId: string; sentCount: number; totalCount: number; skippedEmails: string[] }> => {
     return apiClient.post(`/api/newsletters/${articleId}/send`, { recipients, subject, html });
+  },
+
+  // 10. 발송 이력 조회
+  getSendLogs: async (articleId: string): Promise<{ items: Array<{ id: string; recipientEmail: string; recipientName: string; subject: string; status: string; sentAt: string }> }> => {
+    return apiClient.get(`/api/newsletters/${articleId}/send-logs`);
   },
 };

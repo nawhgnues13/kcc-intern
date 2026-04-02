@@ -279,3 +279,27 @@ async def send_newsletter_route(
         subject=payload.subject,
         html=payload.html,
     )
+
+
+@router.get("/{article_id}/send-logs")
+async def get_send_logs_route(article_id: UUID, db: Session = Depends(get_db)):
+    from src.models.email_send_log import EmailSendLog
+    logs = (
+        db.query(EmailSendLog)
+        .filter(EmailSendLog.article_id == article_id)
+        .order_by(EmailSendLog.sent_at.desc())
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": str(log.id),
+                "recipientEmail": log.recipient_email,
+                "recipientName": log.recipient_name,
+                "subject": log.subject,
+                "status": log.status,
+                "sentAt": log.sent_at.isoformat(),
+            }
+            for log in logs
+        ]
+    }
