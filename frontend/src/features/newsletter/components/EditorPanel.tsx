@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Loader2, Check, Edit3, Mail, ImagePlus, CheckCircle2 } from "lucide-react";
+import { Loader2, Check, Edit3, Mail, ImagePlus, CheckCircle2, History } from "lucide-react";
 import { useNavigate } from "react-router";
 import { NewsletterHeader } from "./NewsletterHeader";
 import { NewsletterFooter } from "./NewsletterFooter";
@@ -183,6 +183,17 @@ const MenuBar = ({ editor, articleId }: { editor: Editor | null; articleId?: str
   );
 };
 
+function SendLogsButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+    >
+      <History className="w-4 h-4" /> 발송 이력
+    </button>
+  );
+}
+
 interface EditorPanelProps {
   isGenerating: boolean;
   newsletterTitle: string;
@@ -194,6 +205,7 @@ interface EditorPanelProps {
   isEditingContent: boolean;
   setIsEditingContent: (val: boolean) => void;
   setShowEmailModal: (val: boolean) => void;
+  onShowSendLogs?: () => void;
   headerFooter: string;
   articleId?: string;
   isViewMode?: boolean;
@@ -211,6 +223,7 @@ export function EditorPanel({
   isEditingContent,
   setIsEditingContent,
   setShowEmailModal,
+  onShowSendLogs,
   headerFooter,
   articleId,
   isViewMode,
@@ -346,6 +359,7 @@ export function EditorPanel({
                 >
                   <Mail className="w-4 h-4" /> 이메일 보내기
                 </button>
+                {articleId && onShowSendLogs && <SendLogsButton onOpen={onShowSendLogs} />}
                 {!isViewMode && (
                   <button
                     onClick={() => navigate('/articles')}

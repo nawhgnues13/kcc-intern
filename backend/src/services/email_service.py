@@ -74,7 +74,7 @@ async def _build_message(html: str, images: list[ImageInfo], subject: str, to_em
 
 
 async def _send_one(msg: EmailMessage) -> bool:
-    """단일 메시지 발송"""
+    """단일 메시지 발송 (Gmail SMTP)"""
     try:
         await aiosmtplib.send(
             msg,
@@ -90,22 +90,77 @@ async def _send_one(msg: EmailMessage) -> bool:
         return False
 
 
+def _inject_unsubscribe_link(html: str, email: str) -> str:
+    """HTML 하단에 수신거부 링크 삽입"""
+    from src.api.routes.unsubscribe import make_unsubscribe_url
+    url = make_unsubscribe_url(email)
+    link = (
+        f'<div style="text-align:center;padding:16px;font-size:12px;color:#94a3b8;">'
+        f'<a href="{url}" style="color:#94a3b8;">수신거부</a>'
+        f'</div>'
+    )
+    if "</body>" in html:
+        return html.replace("</body>", f"{link}</body>")
+    return html + link
+
+
+async def _send_via_resend(
+    html: str,
+    subject: str,
+    recipients: list[dict],
+) -> dict[str, list[str]]:
+    """Resend API를 사용한 이메일 발송. {"success": [...], "failed": [...]} 반환"""
+    import resend
+
+    resend.api_key = settings.resend_api_key
+    from_address = settings.email_from or f"newsletter@{settings.resend_api_key}"
+
+    async def _send_one_resend(r: dict) -> bool:
+        to = f"{r['name']} <{r['email']}>" if r.get("name") else r["email"]
+        personalized_html = _inject_unsubscribe_link(html, r["email"])
+        try:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: resend.Emails.send({
+                    "from": from_address,
+                    "to": [to],
+                    "subject": subject,
+                    "html": personalized_html,
+                }),
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Resend 발송 실패 ({r['email']}): {e}", exc_info=True)
+            return False
+
+    results = await asyncio.gather(*[_send_one_resend(r) for r in recipients])
+    success = [r["email"] for r, ok in zip(recipients, results) if ok]
+    failed = [r["email"] for r, ok in zip(recipients, results) if not ok]
+    logger.info(f"Resend 이메일 발송 완료: {len(success)}/{len(recipients)}명")
+    return {"success": success, "failed": failed}
+
+
 async def send_email(
     html: str,
     images: list[ImageInfo],
     subject: str,
     recipients: list[dict] | None = None,
-) -> bool:
+) -> dict[str, list[str]]:
     """
     HTML 뉴스레터 이메일 발송.
     recipients: [{"name": "...", "email": "..."}] 형태.
     None이면 .env의 EMAIL_TO로 단일 발송.
+    RESEND_API_KEY가 설정되어 있으면 Resend, 없으면 Gmail SMTP 사용.
+    {"success": [...], "failed": [...]} 반환.
     """
     if not recipients:
         recipients = [{"name": "", "email": settings.email_to}]
 
+    if settings.resend_api_key:
+        return await _send_via_resend(html, subject, recipients)
+
     tasks = [
-        _build_message(html, images, subject, r["email"], r["name"])
+        _build_message(_inject_unsubscribe_link(html, r["email"]), images, subject, r["email"], r["name"])
         for r in recipients
     ]
     messages = await asyncio.gather(*tasks)
@@ -113,7 +168,7 @@ async def send_email(
     send_tasks = [_send_one(msg) for msg in messages]
     results = await asyncio.gather(*send_tasks)
 
-    success_count = sum(results)
-    total = len(recipients)
-    logger.info(f"이메일 발송 완료: {success_count}/{total}명")
-    return success_count > 0
+    success = [r["email"] for r, ok in zip(recipients, results) if ok]
+    failed = [r["email"] for r, ok in zip(recipients, results) if not ok]
+    logger.info(f"이메일 발송 완료: {len(success)}/{len(recipients)}명")
+    return {"success": success, "failed": failed}

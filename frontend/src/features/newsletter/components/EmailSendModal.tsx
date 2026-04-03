@@ -56,7 +56,7 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
   const [showPicker, setShowPicker] = useState(false);
   const [showEmployeeSubmenu, setShowEmployeeSubmenu] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sentCount: number; totalCount: number } | null>(null);
+  const [sendResult, setSendResult] = useState<{ sentCount: number; totalCount: number; skippedEmails: string[]; failedEmails: string[] } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [manualEmailInput, setManualEmailInput] = useState("");
   const [manualRecipients, setManualRecipients] = useState<EmailRecipient[]>([]);
@@ -194,9 +194,10 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
         html = renderEmailHtml(headerFooter, bodyContent, subject || title);
       }
       const result = await newsletterService.sendNewsletter(articleId, allRecipients, subject || undefined, html);
-      setSendResult({ sentCount: result.sentCount, totalCount: result.totalCount });
-    } catch {
-      setSendError("이메일 발송 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setSendResult({ sentCount: result.sentCount, totalCount: result.totalCount, skippedEmails: result.skippedEmails ?? [], failedEmails: result.failedEmails ?? [] });
+    } catch (e: unknown) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setSendError(detail || "이메일 발송 중 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setIsSending(false);
     }
@@ -224,6 +225,22 @@ export function EmailSendModal({ isOpen, onClose, title, articleId, headerFooter
             <p className="text-sm text-slate-500 mt-1">
               {sendResult.totalCount}명 중 {sendResult.sentCount}명에게 이메일을 발송했습니다.
             </p>
+            {sendResult.skippedEmails.length > 0 && (
+              <div className="mt-3 text-left bg-amber-50 border border-amber-200/50 rounded-xl p-3">
+                <p className="text-xs font-semibold text-amber-700 mb-1">수신거부로 제외된 이메일</p>
+                {sendResult.skippedEmails.map((email) => (
+                  <p key={email} className="text-xs text-amber-600">{email}</p>
+                ))}
+              </div>
+            )}
+            {sendResult.failedEmails.length > 0 && (
+              <div className="mt-3 text-left bg-rose-50 border border-rose-200/50 rounded-xl p-3">
+                <p className="text-xs font-semibold text-rose-700 mb-1">발송 실패한 이메일</p>
+                {sendResult.failedEmails.map((email) => (
+                  <p key={email} className="text-xs text-rose-600">{email}</p>
+                ))}
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}

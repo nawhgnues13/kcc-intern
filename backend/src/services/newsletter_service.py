@@ -1565,19 +1565,86 @@ async def send_newsletter(
     image_urls = _extract_image_urls(article.body_content)
     images = [ImageInfo(type="og", url=url) for url in image_urls]
 
-    recipient_dicts = [{"name": r.name, "email": r.email} for r in recipients]
-    success = await send_email(
+    # 수신거부한 이메일 필터링
+    from src.models.email_unsubscribe import EmailUnsubscribe
+    unsubscribed_emails = {
+        row.email.lower()
+        for row in db.query(EmailUnsubscribe.email).all()
+    }
+    skipped = [r.email for r in recipients if r.email.lower() in unsubscribed_emails]
+    filtered = [r for r in recipients if r.email.lower() not in unsubscribed_emails]
+
+    if not filtered:
+        raise HTTPException(status_code=422, detail=f"모든 수신자가 수신거부 상태입니다: {', '.join(skipped)}")
+
+    recipient_dicts = [{"name": r.name, "email": r.email} for r in filtered]
+    result = await send_email(
         html=html,
         images=images,
         subject=effective_subject,
         recipients=recipient_dicts,
     )
 
-    if not success:
+    if not result["success"]:
         raise HTTPException(status_code=502, detail="모든 수신자에게 이메일 발송에 실패했습니다.")
+
+    from src.models.email_send_log import EmailSendLog
+    success_set = set(result["success"])
+    for r in filtered:
+        db.add(EmailSendLog(
+            article_id=article_id,
+            recipient_email=r.email,
+            recipient_name=r.name,
+            subject=effective_subject,
+            status="success" if r.email in success_set else "failed",
+        ))
+    db.commit()
 
     return NewsletterSendResponse(
         article_id=article_id,
-        sent_count=len(recipients),
+        sent_count=len(result["success"]),
         total_count=len(recipients),
+        skipped_emails=skipped,
+        failed_emails=result["failed"],
     )
+
+
+async def resend_to_recipient(
+    *,
+    db: Session,
+    article_id: UUID,
+    log_id: str,
+    email: str,
+) -> dict:
+    """발송 이력에서 특정 수신자에게 재발송"""
+    from src.models.email_send_log import EmailSendLog
+    from src.models.email_unsubscribe import EmailUnsubscribe
+    from uuid import UUID as _UUID
+
+    # 수신거부 확인
+    unsubscribed = db.query(EmailUnsubscribe).filter(EmailUnsubscribe.email == email.lower()).first()
+    if unsubscribed:
+        raise HTTPException(status_code=422, detail="수신거부된 이메일입니다.")
+
+    # 정확한 로그 행 조회
+    log = db.query(EmailSendLog).filter(EmailSendLog.id == _UUID(log_id)).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="발송 이력이 없습니다.")
+
+    article = _get_article(db, article_id)
+    html = _body_content_to_html(article.body_content, article.title)
+    image_urls = _extract_image_urls(article.body_content)
+    images = [ImageInfo(type="og", url=url) for url in image_urls]
+
+    result = await send_email(
+        html=html,
+        images=images,
+        subject=log.subject,
+        recipients=[{"name": log.recipient_name, "email": email}],
+    )
+
+    status = "success" if email in result["success"] else "failed"
+    log.status = status
+    db.commit()
+
+    return {"email": email, "status": status}

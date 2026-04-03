@@ -19,6 +19,7 @@ from src.schemas.newsletter import (
     NewsletterMessagesResponse,
     NewsletterSaveRequest,
     NewsletterSaveResponse,
+    NewsletterResendRequest,
     NewsletterSendRequest,
     NewsletterSendResponse,
 )
@@ -31,6 +32,7 @@ from src.services.newsletter_service import (
     get_newsletter_messages,
     list_newsletters,
     save_newsletter,
+    resend_to_recipient,
     send_newsletter,
     upload_newsletter_editor_image,
 )
@@ -378,3 +380,36 @@ async def send_newsletter_route(
         subject=payload.subject,
         html=payload.html,
     )
+
+
+@router.post("/{article_id}/resend")
+async def resend_newsletter_route(
+    article_id: UUID,
+    payload: NewsletterResendRequest,
+    db: Session = Depends(get_db),
+):
+    return await resend_to_recipient(db=db, article_id=article_id, log_id=payload.log_id, email=payload.email)
+
+
+@router.get("/{article_id}/send-logs")
+async def get_send_logs_route(article_id: UUID, db: Session = Depends(get_db)):
+    from src.models.email_send_log import EmailSendLog
+    logs = (
+        db.query(EmailSendLog)
+        .filter(EmailSendLog.article_id == article_id)
+        .order_by(EmailSendLog.sent_at.desc())
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": str(log.id),
+                "recipientEmail": log.recipient_email,
+                "recipientName": log.recipient_name,
+                "subject": log.subject,
+                "status": log.status,
+                "sentAt": log.sent_at.isoformat(),
+            }
+            for log in logs
+        ]
+    }

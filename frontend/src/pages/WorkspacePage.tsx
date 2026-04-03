@@ -7,6 +7,7 @@ import { ChatPanel } from "../features/chat/components/ChatPanel";
 import { EditorPanel } from "../features/newsletter/components/EditorPanel";
 import { SettingsPanel } from "../features/settings/components/SettingsPanel";
 import { EmailSendModal } from "../features/newsletter/components/EmailSendModal";
+import { SendLogsModal } from "../features/newsletter/components/SendLogsModal";
 import { ImageReplaceModal } from "../features/newsletter/components/ImageReplaceModal";
 import { BlogViewer } from "../features/newsletter/components/BlogViewer";
 import { InstagramViewer } from "../features/newsletter/components/InstagramViewer";
@@ -52,6 +53,7 @@ export function WorkspacePage() {
   } = useWorkspaceModals();
 
   const [authorUserId, setAuthorUserId] = useState<string | null>(null);
+  const [showSendLogsModal, setShowSendLogsModal] = useState(false);
 
   const onRegenerateClick = async () => {
     setTemplate(tempTemplate);
@@ -273,6 +275,7 @@ export function WorkspacePage() {
           isEditingContent={isEditingContent}
           setIsEditingContent={setIsEditingContent}
           setShowEmailModal={setShowEmailModal}
+          onShowSendLogs={() => setShowSendLogsModal(true)}
           headerFooter={headerFooter}
           articleId={articleId || undefined}
           isViewMode={isViewMode}
@@ -407,6 +410,14 @@ export function WorkspacePage() {
         headerFooter={headerFooter}
         bodyContent={newsletterContent}
       />
+
+      {articleId && (
+        <SendLogsModal
+          isOpen={showSendLogsModal}
+          onClose={() => setShowSendLogsModal(false)}
+          articleId={articleId}
+        />
+      )}
 
       <ImageReplaceModal 
         isOpen={showImageReplaceModal}

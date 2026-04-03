@@ -13,11 +13,14 @@ from fastapi.responses import FileResponse, HTMLResponse
 from src.api.routes.auth import router as auth_router
 from src.api.routes.content_tasks import router as content_tasks_router
 from src.api.routes.crm import router as crm_router
+from src.api.routes.customers import router as customers_router
 from src.api.routes.employees import router as employees_router
 from src.api.routes.search import router as search_router
 from src.api.routes.newsletters import router as newsletters_router
+from src.api.routes.unsubscribe import router as unsubscribe_router
 from src.api.routes.users import router as users_router
 from src.api.routes.utils import router as utils_router
+from src.api.routes.sales_trends import router as sales_trends_router
 from src.config import settings
 from src.db import check_db_connection
 from src.pipeline.auto_newsletter import run_auto_newsletter_pipeline
@@ -103,12 +106,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AI Newsletter MVP", lifespan=lifespan)
 app.include_router(auth_router)
 app.include_router(employees_router)
+app.include_router(customers_router)
 app.include_router(crm_router)
 app.include_router(content_tasks_router)
 app.include_router(search_router)
 app.include_router(newsletters_router)
+app.include_router(unsubscribe_router)
 app.include_router(users_router)
 app.include_router(utils_router)
+app.include_router(sales_trends_router)
 
 
 @app.post("/trigger/it")

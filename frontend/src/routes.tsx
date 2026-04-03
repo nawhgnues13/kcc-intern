@@ -13,6 +13,7 @@ import { EmployeeManagementPage } from "./pages/crm/EmployeeManagementPage";
 import { SalesRegistrationPage } from "./pages/crm/SalesRegistrationPage";
 import { ServiceRegistrationPage } from "./pages/crm/ServiceRegistrationPage";
 import { GroomingRegistrationPage } from "./pages/crm/GroomingRegistrationPage";
+import { SalesTrendPage } from "./pages/crm/SalesTrendPage";
 import { GenerationResultsPage } from "./pages/GenerationResultsPage";
 import { RouteErrorPage } from "./pages/error/RouteErrorPage";
 import { useAuthStore } from "./store/useAuthStore";
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
       { path: "crm/sales", Component: SalesRegistrationPage },
       { path: "crm/service", Component: ServiceRegistrationPage },
       { path: "crm/grooming", Component: GroomingRegistrationPage },
+      { path: "crm/trends", Component: SalesTrendPage },
     ],
   },
   // Public Auth Routes

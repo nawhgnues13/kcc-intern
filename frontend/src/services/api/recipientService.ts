@@ -20,7 +20,7 @@ export const recipientService = {
 
   getCustomerRecipients: async (employeeEmail?: string): Promise<EmailRecipient[]> => {
     const params = employeeEmail ? { employee_email: employeeEmail } : {};
-    const res = await apiClient.get<{ items: EmailRecipient[] }>('/api/crm/customers', { params });
+    const res = await apiClient.get<{ items: EmailRecipient[] }>('/api/customers', { params });
     return res.items;
   },
 };
