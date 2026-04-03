@@ -10,13 +10,24 @@ interface User {
   role: string;
   company?: string;
   avatar?: string;
+  ui_permissions: {
+    can_manage_sales: boolean;
+    can_manage_service: boolean;
+    can_manage_grooming: boolean;
+    can_manage_employees: boolean;
+  };
+  employee_profile?: {
+    company_code: string;
+    work_unit_type: string;
+    branch_name: string;
+  };
 }
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password?: string) => Promise<void>;
-  signup: (name: string, role: string, email: string, company: string, avatar?: string, password?: string) => Promise<void>;
+  signup: (loginId: string, password: string, name: string, companyCode: string, workUnitType: string, branchName: string, avatar?: string) => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   logout: () => void;
 }
@@ -36,9 +47,16 @@ export const useAuthStore = create<AuthState>()(
             id: res.user.id,
             name: res.user.name,
             email: res.user.login_id,
-            role: res.user.role || res.user.job_title || 'Marketer',
+            role: res.user.job_title || 'Marketer',
             company: res.user.company_name,
-            avatar: res.user.profile_image_url
+            avatar: res.user.profile_image_url,
+            ui_permissions: res.user.ui_permissions || {
+              can_manage_sales: false,
+              can_manage_service: false,
+              can_manage_grooming: false,
+              can_manage_employees: false
+            },
+            employee_profile: res.user.employee_profile
           }, 
           isAuthenticated: true 
         });
@@ -51,14 +69,15 @@ export const useAuthStore = create<AuthState>()(
     }
   },
   
-  signup: async (name: string, role: string, email: string, company: string, avatar?: string, password?: string) => {
+  signup: async (loginId: string, password: string, name: string, companyCode: string, workUnitType: string, branchName: string, avatar?: string) => {
     try {
       const formData = new FormData();
-      formData.append('login_id', email);
-      formData.append('password', password || '12345678');
+      formData.append('login_id', loginId);
+      formData.append('password', password);
       formData.append('name', name);
-      if (company) formData.append('company_name', company);
-      if (role) formData.append('job_title', role);
+      if (companyCode) formData.append('company_code', companyCode);
+      if (workUnitType) formData.append('work_unit_type', workUnitType);
+      if (branchName) formData.append('branch_name', branchName);
       
       if (avatar && avatar.startsWith('data:image')) {
         const arr = avatar.split(',');
@@ -77,7 +96,7 @@ export const useAuthStore = create<AuthState>()(
       await authService.signup(formData);
       
       // Automatically login after successful signup
-      const res = await authService.login(email, password || '12345678');
+      const res = await authService.login(loginId, password);
       if (res.user) {
         set({ 
           user: {
@@ -86,13 +105,23 @@ export const useAuthStore = create<AuthState>()(
             email: res.user.login_id,
             role: res.user.job_title || 'Marketer',
             company: res.user.company_name,
-            avatar: res.user.profile_image_url
+            avatar: res.user.profile_image_url,
+            ui_permissions: res.user.ui_permissions || {
+              can_manage_sales: false,
+              can_manage_service: false,
+              can_manage_grooming: false,
+              can_manage_employees: false
+            },
+            employee_profile: res.user.employee_profile
           }, 
           isAuthenticated: true 
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Signup failed:", err);
+      if (err.response?.status === 409) {
+        throw new Error("409_CONFLICT");
+      }
       alert("회원가입에 실패했습니다.");
       throw err;
     }

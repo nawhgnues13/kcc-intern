@@ -40,6 +40,9 @@ export function useDashboard() {
       } else if (template === '블로그') {
         finalContentFormat = 'blog';
         finalTemplateStyle = headerFooter;
+      } else if (template === '페이스북') {
+        finalContentFormat = 'facebook';
+        finalTemplateStyle = 'facebook_page_basic';
       } else {
         finalContentFormat = 'newsletter';
         finalTemplateStyle = `${template} / ${headerFooter}`;

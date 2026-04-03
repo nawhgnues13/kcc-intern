@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { useSearchParams } from "react-router";
 import {
   AlertCircle,
   CheckCircle2,
   Clock3,
   FileText,
-  Filter,
   Instagram as InstagramIcon,
+  Facebook as FacebookIcon,
   Layers,
   LoaderCircle,
   Search,
@@ -25,14 +26,9 @@ type ResultViewMode =
   | "completed_all"
   | "completed_blog"
   | "completed_instagram"
+  | "completed_facebook"
   | "in_progress"
   | "failed";
-
-const SOURCE_LABELS: Record<string, string> = {
-  sale: "차량 판매",
-  service: "차량 수리",
-  grooming: "애견 미용",
-};
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "대기",
@@ -50,16 +46,14 @@ const STATUS_STYLES: Record<string, string> = {
   skipped: "bg-slate-100 text-slate-500 border-slate-200",
 };
 
-function matchesSearchAndSource(
+function matchesSearch(
   item: {
     title?: string | null;
     articleTitle?: string | null;
     customerName?: string | null;
     summary?: string | null;
-    sourceType: string;
   },
   searchQuery: string,
-  sourceTypeFilter: string,
 ) {
   const search = searchQuery.trim().toLowerCase();
   const haystack = [
@@ -72,16 +66,12 @@ function matchesSearchAndSource(
     .join(" ")
     .toLowerCase();
 
-  const matchesSearch = !search || haystack.includes(search);
-  const matchesSource =
-    sourceTypeFilter === "all" || item.sourceType === sourceTypeFilter;
-
-  return matchesSearch && matchesSource;
+  return !search || haystack.includes(search);
 }
 
 function ProcessingTaskCard({ task }: { task: ContentTaskItem }) {
   return (
-    <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+    <div id={`task-${task.taskId}`} className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm transition-all duration-500">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span
           className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
@@ -91,10 +81,7 @@ function ProcessingTaskCard({ task }: { task: ContentTaskItem }) {
           {STATUS_LABELS[task.status] || task.status}
         </span>
         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600">
-          {task.contentFormat === "instagram" ? "인스타그램" : "블로그"}
-        </span>
-        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600">
-          {SOURCE_LABELS[task.sourceType] || task.sourceType}
+          {task.contentFormat === "instagram" ? "인스타그램" : task.contentFormat === "facebook" ? "페이스북" : "블로그"}
         </span>
       </div>
 
@@ -106,15 +93,19 @@ function ProcessingTaskCard({ task }: { task: ContentTaskItem }) {
         {task.summary || "등록된 DB 정보를 기반으로 자동 생성 중입니다."}
       </p>
 
-      <div className="grid grid-cols-1 gap-2 text-xs font-semibold text-slate-400 sm:grid-cols-2">
-        <div>원천 유형: {SOURCE_LABELS[task.sourceType] || task.sourceType}</div>
-        <div>요청 시각: {new Date(task.createdAt).toLocaleString()}</div>
+      <div className="text-xs font-semibold text-slate-400">
+        요청 시각: {new Date(task.createdAt).toLocaleString()}
       </div>
     </div>
   );
 }
 
 export function GenerationResultsPage() {
+  const [searchParams] = useSearchParams();
+  const deepLinkArticleId = searchParams.get("articleId");
+  const deepLinkTaskId = searchParams.get("taskId");
+  const hasProcessedDeepLink = useRef(false);
+
   const user = useAuthStore((state) => state.user);
   const [results, setResults] = useState<ContentTaskResult[]>([]);
   const [tasks, setTasks] = useState<ContentTaskItem[]>([]);
@@ -123,7 +114,6 @@ export function GenerationResultsPage() {
   const [selectedResult, setSelectedResult] = useState<ContentTaskResult | null>(null);
   const [viewMode, setViewMode] = useState<ResultViewMode>("completed_all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sourceTypeFilter, setSourceTypeFilter] = useState("all");
 
   useEffect(() => {
     if (!user?.id) {
@@ -173,6 +163,39 @@ export function GenerationResultsPage() {
     };
   }, [user?.id]);
 
+  // Deep Link Processing
+  useEffect(() => {
+    if (loading || results.length === 0 && tasks.length === 0 || hasProcessedDeepLink.current) {
+        return;
+    }
+
+    if (deepLinkArticleId) {
+        const found = results.find(r => r.articleId === deepLinkArticleId || r.taskId === deepLinkTaskId);
+        if (found) {
+            setSelectedResult(found);
+            setViewMode("completed_all"); // Default to all if not specified
+            hasProcessedDeepLink.current = true;
+        }
+    } else if (deepLinkTaskId) {
+        const foundTask = tasks.find(t => t.taskId === deepLinkTaskId);
+        if (foundTask) {
+            if (foundTask.status === "failed") setViewMode("failed");
+            else if (foundTask.status === "pending" || foundTask.status === "in_progress") setViewMode("in_progress");
+            else setViewMode("completed_all");
+            
+            // Wait for DOM
+            setTimeout(() => {
+                const el = document.getElementById(`task-${deepLinkTaskId}`);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.classList.add('ring-4', 'ring-[#3721ED]/30', 'ring-offset-2');
+                }
+            }, 300);
+            hasProcessedDeepLink.current = true;
+        }
+    }
+  }, [loading, results, tasks, deepLinkArticleId, deepLinkTaskId]);
+
   const processingTasks = useMemo(
     () => tasks.filter((task) => task.status === "pending" || task.status === "in_progress"),
     [tasks],
@@ -188,6 +211,7 @@ export function GenerationResultsPage() {
       completedAll: results.length,
       completedBlog: results.filter((item) => item.contentFormat === "blog").length,
       completedInstagram: results.filter((item) => item.contentFormat === "instagram").length,
+      completedFacebook: results.filter((item) => item.contentFormat === "facebook").length,
       processing: processingTasks.length,
       failed: failedTasks.length,
     }),
@@ -196,37 +220,26 @@ export function GenerationResultsPage() {
 
   const filteredCompletedResults = useMemo(() => {
     const base = results.filter((item) => {
-      if (viewMode === "completed_blog") {
-        return item.contentFormat === "blog";
-      }
-      if (viewMode === "completed_instagram") {
-        return item.contentFormat === "instagram";
-      }
+      if (viewMode === "completed_blog") return item.contentFormat === "blog";
+      if (viewMode === "completed_instagram") return item.contentFormat === "instagram";
+      if (viewMode === "completed_facebook") return item.contentFormat === "facebook";
       return viewMode === "completed_all";
     });
 
-    return base.filter((item) =>
-      matchesSearchAndSource(item, searchQuery, sourceTypeFilter),
-    );
-  }, [results, searchQuery, sourceTypeFilter, viewMode]);
+    return base.filter((item) => matchesSearch(item, searchQuery));
+  }, [results, searchQuery, viewMode]);
 
   const filteredProcessingTasks = useMemo(
-    () =>
-      processingTasks.filter((item) =>
-        matchesSearchAndSource(item, searchQuery, sourceTypeFilter),
-      ),
-    [processingTasks, searchQuery, sourceTypeFilter],
+    () => processingTasks.filter((item) => matchesSearch(item, searchQuery)),
+    [processingTasks, searchQuery],
   );
 
   const filteredFailedTasks = useMemo(
-    () =>
-      failedTasks.filter((item) =>
-        matchesSearchAndSource(item, searchQuery, sourceTypeFilter),
-      ),
-    [failedTasks, searchQuery, sourceTypeFilter],
+    () => failedTasks.filter((item) => matchesSearch(item, searchQuery)),
+    [failedTasks, searchQuery],
   );
 
-  const cards = [
+  const summaryCards = [
     {
       key: "completed_all" as const,
       label: "완료된 생성 결과",
@@ -234,44 +247,33 @@ export function GenerationResultsPage() {
       icon: <Layers className="h-5 w-5" />,
       tone: "bg-slate-900 text-white border-slate-900",
       inactiveTone: "bg-white text-slate-700 border-slate-200",
-      description: "블로그와 인스타 전체",
-    },
-    {
-      key: "completed_blog" as const,
-      label: "블로그 완료",
-      value: counts.completedBlog,
-      icon: <FileText className="h-5 w-5" />,
-      tone: "bg-blue-600 text-white border-blue-600",
-      inactiveTone: "bg-white text-slate-700 border-slate-200",
-      description: "완료된 블로그만 보기",
-    },
-    {
-      key: "completed_instagram" as const,
-      label: "인스타 완료",
-      value: counts.completedInstagram,
-      icon: <InstagramIcon className="h-5 w-5" />,
-      tone: "bg-pink-600 text-white border-pink-600",
-      inactiveTone: "bg-white text-slate-700 border-slate-200",
-      description: "완료된 인스타만 보기",
+      description: "콘텐츠 생성 완료 전체 내역",
     },
     {
       key: "in_progress" as const,
-      label: "생성 중",
+      label: "생성 진행 중",
       value: counts.processing,
       icon: <Clock3 className="h-5 w-5" />,
       tone: "bg-amber-500 text-white border-amber-500",
       inactiveTone: "bg-white text-slate-700 border-slate-200",
-      description: "대기·생성 중 작업 보기",
+      description: "현재 생성이 진행 중인 작업",
     },
     {
       key: "failed" as const,
-      label: "실패",
+      label: "생성 실패",
       value: counts.failed,
       icon: <TriangleAlert className="h-5 w-5" />,
       tone: "bg-rose-500 text-white border-rose-500",
       inactiveTone: "bg-white text-slate-700 border-slate-200",
-      description: "재확인 필요한 작업",
+      description: "재시도가 필요한 실패 작업",
     },
+  ];
+
+  const contentTabs = [
+    { key: "completed_all", label: "전체", icon: <Layers className="h-4 w-4" />, count: counts.completedAll },
+    { key: "completed_blog", label: "블로그", icon: <FileText className="h-4 w-4" />, count: counts.completedBlog },
+    { key: "completed_instagram", label: "인스타", icon: <InstagramIcon className="h-4 w-4" />, count: counts.completedInstagram },
+    { key: "completed_facebook", label: "페이스북", icon: <FacebookIcon className="h-4 w-4" />, count: counts.completedFacebook },
   ];
 
   const renderBody = () => {
@@ -328,11 +330,12 @@ export function GenerationResultsPage() {
     return (
       <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 xl:grid-cols-3">
         {filteredCompletedResults.map((result) => (
-          <ResultCard
-            key={result.taskId}
-            result={result}
-            onClick={setSelectedResult}
-          />
+          <div key={result.taskId} id={`task-${result.taskId}`}>
+            <ResultCard
+              result={result}
+              onClick={setSelectedResult}
+            />
+          </div>
         ))}
       </div>
     );
@@ -351,13 +354,13 @@ export function GenerationResultsPage() {
             </h1>
           </div>
           <p className="font-medium text-slate-500">
-            DB 등록 데이터를 기반으로 자동 생성된 블로그와 인스타그램 결과를 상태별로 확인하세요.
+            임시 DB 등록 데이터를 기반으로 생성된 블로그, 인스타그램, 페이스북 결과를 확인하세요.
           </p>
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-5">
-          {cards.map((card) => {
-            const active = viewMode === card.key;
+        <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {summaryCards.map((card) => {
+            const active = viewMode === card.key || (card.key === "completed_all" && viewMode.startsWith("completed_"));
             return (
               <button
                 key={card.key}
@@ -383,7 +386,7 @@ export function GenerationResultsPage() {
         </div>
 
         <div className="mb-8 flex flex-wrap items-center gap-6 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-          <div className="relative min-w-[300px] flex-1">
+          <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -392,21 +395,6 @@ export function GenerationResultsPage() {
               onChange={(event) => setSearchQuery(event.target.value)}
               className="w-full rounded-2xl border border-slate-100 bg-slate-50 py-3 pl-12 pr-4 text-sm font-medium transition-all focus:border-[#3721ED] focus:outline-none focus:ring-2 focus:ring-[#3721ED]/20"
             />
-          </div>
-
-          <div className="flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500">
-            <Filter className="h-4 w-4" />
-            원천
-            <select
-              value={sourceTypeFilter}
-              onChange={(event) => setSourceTypeFilter(event.target.value)}
-              className="cursor-pointer border-none bg-transparent text-slate-800 focus:ring-0"
-            >
-              <option value="all">전체</option>
-              <option value="sale">차량 판매</option>
-              <option value="service">차량 수리</option>
-              <option value="grooming">애견 미용</option>
-            </select>
           </div>
         </div>
 
@@ -433,38 +421,37 @@ export function GenerationResultsPage() {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-800">
-                  {viewMode === "completed_all" && "완료된 생성 결과"}
+                  {viewMode === "completed_all" && "완료된 생성 결과 전체"}
                   {viewMode === "completed_blog" && "블로그 완료 결과"}
                   {viewMode === "completed_instagram" && "인스타 완료 결과"}
-                  {viewMode === "in_progress" && "생성 중 작업"}
-                  {viewMode === "failed" && "실패한 작업"}
+                  {viewMode === "completed_facebook" && "페이스북 완료 결과"}
+                  {viewMode === "in_progress" && "생성 진행 중 작업"}
+                  {viewMode === "failed" && "생성 실패 작업"}
                 </h2>
                 <p className="mt-1 text-sm font-medium text-slate-500">
                   {viewMode === "in_progress"
                     ? "자동 생성이 진행 중이거나 대기 중인 작업입니다."
                     : viewMode === "failed"
-                      ? "실패한 작업을 모아 보고 재확인할 수 있습니다."
+                      ? "실패한 작업을 모아 보고 재확인을 요청할 수 있습니다."
                       : "완료된 결과를 유형별로 나눠 보고 상세 화면으로 이동할 수 있습니다."}
                 </p>
               </div>
-            <div className="flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
+            <div className="hidden sm:flex items-center gap-2 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-500">
                 <LoaderCircle className="h-4 w-4 text-[#3721ED]" />
-                5초마다 자동 새로고침
+                5초마다 자동 갱신
               </div>
             </div>
 
             {/* Segmented Tab Control for Content Type Branching */}
-            {(viewMode === "completed_all" ||
-              viewMode === "completed_blog" ||
-              viewMode === "completed_instagram") && (
-              <div className="mb-8 flex justify-start">
+            {viewMode.startsWith("completed_") && (
+              <div className="mb-8 flex justify-start overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden">
                 <div className="inline-flex gap-1 rounded-[20px] bg-slate-100 p-1.5 shadow-inner">
-                  {cards.slice(0, 3).map((tab) => {
+                  {contentTabs.map((tab) => {
                     const active = viewMode === tab.key;
                     return (
                       <button
                         key={tab.key}
-                        onClick={() => setViewMode(tab.key)}
+                        onClick={() => setViewMode(tab.key as ResultViewMode)}
                         className={`relative flex items-center gap-2 rounded-2xl px-6 py-2.5 text-sm font-bold transition-all duration-300 ${
                           active ? "text-white shadow-md" : "text-slate-500 hover:text-slate-800"
                         }`}
@@ -477,28 +464,24 @@ export function GenerationResultsPage() {
                                 ? "bg-blue-600"
                                 : tab.key === "completed_instagram"
                                   ? "bg-pink-600"
-                                  : "bg-slate-900"
+                                  : tab.key === "completed_facebook"
+                                    ? "bg-[#1877F2]"
+                                    : "bg-slate-900"
                             }`}
                             transition={{ type: "spring", bounce: 0.15, duration: 0.5 }}
                           />
                         )}
                         <span className="relative z-10 shrink-0">
-                          {tab.key === "completed_blog" ? (
-                            <FileText className="h-4 w-4" />
-                          ) : tab.key === "completed_instagram" ? (
-                            <InstagramIcon className="h-4 w-4" />
-                          ) : (
-                            <Layers className="h-4 w-4" />
-                          )}
+                          {tab.icon}
                         </span>
-                        <span className="relative z-10">{tab.label.replace(" 완료", "").replace("된 생성 결과", " 전체")}</span>
-                        {tab.value > 0 && (
+                        <span className="relative z-10">{tab.label}</span>
+                        {tab.count > 0 && (
                           <span
                             className={`relative z-10 flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-black leading-none ${
                               active ? "bg-white/20 text-white" : "bg-slate-200 text-slate-500"
                             }`}
                           >
-                            {tab.value}
+                            {tab.count}
                           </span>
                         )}
                       </button>

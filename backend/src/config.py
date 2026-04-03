@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -23,9 +27,11 @@ class Settings(BaseSettings):
     instagram_publish_ig_user_id: str = ""
     instagram_publish_api_version: str = "v25.0"
     instagram_publish_host_url: str = "graph.instagram.com"
+    external_crm_base_url: str = ""
+    external_crm_secret_key: str = ""
 
     class Config:
-        env_file = ".env"
+        env_file = str(BASE_DIR / ".env")
 
 
 settings = Settings()

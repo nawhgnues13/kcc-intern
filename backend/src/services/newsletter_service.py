@@ -24,7 +24,6 @@ from src.schemas.newsletter import (
     ArticleSourceResponse,
     EmailRecipient,
     InstagramPublishInfoResponse,
-    InstagramPlatformOutputResponse,
     NewsletterDeleteResponse,
     NewsletterDetailResponse,
     NewsletterGenerateResponse,
@@ -34,6 +33,7 @@ from src.schemas.newsletter import (
     NewsletterImageUploadResponse,
     NewsletterSaveResponse,
     NewsletterSendResponse,
+    SocialPlatformOutputResponse,
 )
 from src.models.schemas import ImageInfo
 from src.services.email_service import send_email
@@ -55,6 +55,8 @@ BLOG_RENDER_MODES = {
     "blog_markdown": "markdown",
 }
 INSTAGRAM_TEMPLATE_STYLE = "instagram_default"
+FACEBOOK_TEMPLATE_STYLE = "facebook_page_basic"
+KAKAO_TEMPLATE_STYLE = "kakao_channel_basic"
 
 
 def _get_user(db: Session, user_id: UUID) -> User:
@@ -328,6 +330,19 @@ def _extract_instagram_post_text(body_content: dict[str, Any]) -> str:
     return normalized
 
 
+def _extract_facebook_post_text(body_content: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for block in body_content.get("content", []):
+        if block.get("type") not in {"heading", "paragraph", "quote"}:
+            continue
+
+        text = _flatten_text_content(block)
+        if text:
+            lines.append(text)
+
+    return "\n\n".join(line.strip() for line in lines if line.strip()).strip()
+
+
 def _normalize_instagram_hashtags(raw_value: Any) -> list[str]:
     candidates: list[str] = []
 
@@ -395,6 +410,28 @@ def _build_instagram_platform_output(
         "platform": "instagram",
         "post_text": post_text,
         "hashtags": hashtags,
+        "image_download_urls": image_download_urls,
+    }
+
+
+def _build_facebook_platform_output(
+    *,
+    body_content: dict[str, Any],
+    fallback_image_urls: list[str] | None = None,
+) -> dict[str, Any]:
+    post_text = _extract_facebook_post_text(body_content).strip()
+    image_download_urls = _extract_image_urls(body_content)
+    if not image_download_urls and fallback_image_urls:
+        image_download_urls = [
+            url
+            for url in fallback_image_urls
+            if isinstance(url, str) and url.startswith(("http://", "https://"))
+        ]
+
+    return {
+        "platform": "facebook",
+        "post_text": post_text,
+        "hashtags": [],
         "image_download_urls": image_download_urls,
     }
 
@@ -472,14 +509,14 @@ def _materialize_task_source_images(
     return warnings
 
 
-def _get_platform_output(article: Article) -> InstagramPlatformOutputResponse | None:
+def _get_platform_output(article: Article) -> SocialPlatformOutputResponse | None:
     meta = article.generation_meta or {}
     raw_output = meta.get("platform_output")
     if not isinstance(raw_output, dict):
         return None
 
     try:
-        return InstagramPlatformOutputResponse.model_validate(raw_output)
+        return SocialPlatformOutputResponse.model_validate(raw_output)
     except Exception:
         logger.exception("Failed to parse stored platform_output for article %s", article.id)
         return None
@@ -521,6 +558,10 @@ def _build_image_prompt(
         format_hint = "realistic editorial photo for a blog post"
     elif content_format == "instagram":
         format_hint = "realistic social-media photo for an Instagram post"
+    elif content_format == "facebook":
+        format_hint = "realistic social-media photo for a Facebook Page post"
+    elif content_format == "kakao":
+        format_hint = "realistic promotional photo for a KakaoTalk Channel message"
 
     return (
         f"Create a realistic photo-style image for a {content_format} post. "
@@ -544,6 +585,10 @@ def _resolve_render_mode(content_format: str, template_style: str) -> str:
         return BLOG_RENDER_MODES.get(template_style, "internal")
     if content_format == "instagram" and template_style == INSTAGRAM_TEMPLATE_STYLE:
         return "instagram_post"
+    if content_format == "facebook" and template_style == FACEBOOK_TEMPLATE_STYLE:
+        return "facebook_post"
+    if content_format == "kakao" and template_style == KAKAO_TEMPLATE_STYLE:
+        return "kakao_message"
     return "internal"
 
 
@@ -795,6 +840,11 @@ async def generate_newsletter(
             body_content=generated["bodyContent"],
             fallback_image_urls=[photo.get("fileUrl") for photo in task_source_photos],
         )
+    elif effective_content_format == "facebook":
+        platform_output = _build_facebook_platform_output(
+            body_content=generated["bodyContent"],
+            fallback_image_urls=[photo.get("fileUrl") for photo in task_source_photos],
+        )
 
     article = Article(
         content_format=effective_content_format,
@@ -874,7 +924,7 @@ async def generate_newsletter(
             ArticleAIMessageResponse.model_validate(assistant_message),
         ],
         warnings=final_warnings,
-        platform_output=InstagramPlatformOutputResponse.model_validate(platform_output)
+        platform_output=SocialPlatformOutputResponse.model_validate(platform_output)
         if platform_output
         else None,
         instagram_publish=_get_instagram_publish_info(article),
@@ -1055,6 +1105,10 @@ async def assistant_edit(
             raw_value=result.get("platformOutput"),
             body_content=result["bodyContent"],
         )
+    elif article.content_format == "facebook":
+        updated_generation_meta["platform_output"] = _build_facebook_platform_output(
+            body_content=result["bodyContent"],
+        )
     article.generation_meta = {
         **updated_generation_meta,
     }
@@ -1101,6 +1155,10 @@ def save_newsletter(
     if article.content_format == "instagram":
         meta["platform_output"] = _build_instagram_platform_output(
             raw_value=meta.get("platform_output"),
+            body_content=body_content,
+        )
+    elif article.content_format == "facebook":
+        meta["platform_output"] = _build_facebook_platform_output(
             body_content=body_content,
         )
     article.generation_meta = meta

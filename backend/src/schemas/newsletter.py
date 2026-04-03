@@ -47,13 +47,17 @@ class ArticleResponse(BaseModel):
     updated_at: datetime
 
 
-class InstagramPlatformOutputResponse(BaseModel):
+class SocialPlatformOutputResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
     platform: str
     post_text: str
-    hashtags: list[str]
-    image_download_urls: list[str]
+    hashtags: list[str] = Field(default_factory=list)
+    image_download_urls: list[str] = Field(default_factory=list)
+
+
+class InstagramPlatformOutputResponse(SocialPlatformOutputResponse):
+    pass
 
 
 class InstagramPublishInfoResponse(BaseModel):
@@ -102,7 +106,7 @@ class NewsletterGenerateResponse(BaseModel):
     sources: list[ArticleSourceResponse]
     messages: list[ArticleAIMessageResponse]
     warnings: list[str]
-    platform_output: Optional[InstagramPlatformOutputResponse] = None
+    platform_output: Optional[SocialPlatformOutputResponse] = None
     instagram_publish: Optional[InstagramPublishInfoResponse] = None
 
 
@@ -166,7 +170,7 @@ class NewsletterDetailResponse(BaseModel):
     messages: list[ArticleAIMessageResponse]
     created_at: datetime
     updated_at: datetime
-    platform_output: Optional[InstagramPlatformOutputResponse] = None
+    platform_output: Optional[SocialPlatformOutputResponse] = None
     instagram_publish: Optional[InstagramPublishInfoResponse] = None
 
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { Clock, User, ArrowUpRight, FileText, Instagram, Image as ImageIcon } from "lucide-react";
+import { Clock, User, ArrowUpRight, FileText, Instagram, Facebook, Image as ImageIcon } from "lucide-react";
 
 import { ContentTaskResult } from "../../../types/contentTask";
 
@@ -73,6 +73,8 @@ export function ResultCard({ result, onClick }: ResultCardProps) {
           <div className="flex h-full w-full items-center justify-center bg-slate-50 text-slate-300">
             {result.contentFormat === "instagram" ? (
               <Instagram className="h-12 w-12 opacity-20" />
+            ) : result.contentFormat === "facebook" ? (
+              <Facebook className="h-12 w-12 opacity-20" />
             ) : (
               <ImageIcon className="h-12 w-12 opacity-20" />
             )}
@@ -84,10 +86,12 @@ export function ResultCard({ result, onClick }: ResultCardProps) {
             className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm ${
               result.contentFormat === "instagram"
                 ? "border-pink-400 bg-pink-500 text-white"
-                : "border-[#3721ED] bg-[#3721ED] text-white"
+                : result.contentFormat === "facebook"
+                  ? "border-blue-600 bg-blue-600 text-white"
+                  : "border-[#3721ED] bg-[#3721ED] text-white"
             }`}
           >
-            {result.contentFormat === "instagram" ? "Instagram" : "Blog"}
+            {result.contentFormat === "instagram" ? "Instagram" : result.contentFormat === "facebook" ? "Facebook" : "Blog"}
           </span>
           <span
             className={`rounded-full border px-2.5 py-1 text-[10px] font-bold shadow-sm ${getSourceTypeColor(result.sourceType)}`}

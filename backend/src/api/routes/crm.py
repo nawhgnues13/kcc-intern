@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from src.db import get_db
 from src.schemas.crm import (
     CustomerListResponse,
+    ExternalSalesDeliveryListResponse,
     GroomingRegistrationListResponse,
     GroomingRegistrationResponse,
     SalesRegistrationListResponse,
@@ -21,6 +22,8 @@ from src.services.crm_service import (
     delete_sales_registration,
     delete_service_registration,
     get_grooming_registration_detail,
+    import_external_sales_registration,
+    list_external_sales_deliveries,
     get_sales_registration_detail,
     get_service_registration_detail,
     list_customers,
@@ -28,7 +31,9 @@ from src.services.crm_service import (
     list_sales_registrations,
     list_service_registrations,
     parse_datetime_value,
+    parse_delivery_payload,
     parse_existing_photo_descriptions,
+    parse_force_regenerate_formats,
     parse_keep_photo_ids,
     parse_photo_descriptions,
     parse_requested_contents,
@@ -55,15 +60,23 @@ def _clean_files(files: list[UploadFile]) -> list[UploadFile]:
 @router.post("/sales-registrations", response_model=SalesRegistrationResponse)
 async def create_sales_registration_route(
     employee_id: UUID = Form(...),
+    external_contract_no: str | None = Form(default=None),
     customer_name: str = Form(...),
     customer_phone: str | None = Form(default=None),
     customer_email: str | None = Form(default=None),
     vehicle_model: str = Form(...),
+    class_name: str | None = Form(default=None),
+    car_year: str | None = Form(default=None),
+    exterior_color: str | None = Form(default=None),
+    interior_color: str | None = Form(default=None),
     sale_price: float | None = Form(default=None),
+    invoice_price: float | None = Form(default=None),
     sale_date: str = Form(...),
+    contract_date: str | None = Form(default=None),
     branch_name: str | None = Form(default=None),
     note: str | None = Form(default=None),
     requested_contents: str | None = Form(default=None),
+    force_regenerate_formats: str | None = Form(default=None),
     photo_descriptions: str | None = Form(default=None),
     files: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
@@ -72,16 +85,24 @@ async def create_sales_registration_route(
         db=db,
         payload={
             "employee_id": employee_id,
+            "external_contract_no": external_contract_no,
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "customer_email": customer_email,
             "vehicle_model": vehicle_model,
+            "class_name": class_name,
+            "car_year": car_year,
+            "exterior_color": exterior_color,
+            "interior_color": interior_color,
             "sale_price": sale_price,
+            "invoice_price": invoice_price,
             "sale_date": parse_datetime_value(sale_date, "sale_date"),
+            "contract_date": parse_datetime_value(contract_date, "contract_date") if contract_date else None,
             "branch_name": branch_name,
             "note": note,
         },
         requested_contents=parse_requested_contents(requested_contents),
+        force_regenerate_formats=parse_force_regenerate_formats(force_regenerate_formats),
         photo_descriptions=parse_photo_descriptions(photo_descriptions),
         files=_clean_files(files),
     )
@@ -101,15 +122,23 @@ async def get_sales_registration_detail_route(registration_id: UUID, db: Session
 async def update_sales_registration_route(
     registration_id: UUID,
     employee_id: UUID = Form(...),
+    external_contract_no: str | None = Form(default=None),
     customer_name: str = Form(...),
     customer_phone: str | None = Form(default=None),
     customer_email: str | None = Form(default=None),
     vehicle_model: str = Form(...),
+    class_name: str | None = Form(default=None),
+    car_year: str | None = Form(default=None),
+    exterior_color: str | None = Form(default=None),
+    interior_color: str | None = Form(default=None),
     sale_price: float | None = Form(default=None),
+    invoice_price: float | None = Form(default=None),
     sale_date: str = Form(...),
+    contract_date: str | None = Form(default=None),
     branch_name: str | None = Form(default=None),
     note: str | None = Form(default=None),
     requested_contents: str | None = Form(default=None),
+    force_regenerate_formats: str | None = Form(default=None),
     keep_photo_ids: str | None = Form(default=None),
     photo_descriptions: str | None = Form(default=None),
     existing_photo_descriptions: str | None = Form(default=None),
@@ -121,26 +150,67 @@ async def update_sales_registration_route(
         registration_id=registration_id,
         payload={
             "employee_id": employee_id,
+            "external_contract_no": external_contract_no,
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "customer_email": customer_email,
             "vehicle_model": vehicle_model,
+            "class_name": class_name,
+            "car_year": car_year,
+            "exterior_color": exterior_color,
+            "interior_color": interior_color,
             "sale_price": sale_price,
+            "invoice_price": invoice_price,
             "sale_date": parse_datetime_value(sale_date, "sale_date"),
+            "contract_date": parse_datetime_value(contract_date, "contract_date") if contract_date else None,
             "branch_name": branch_name,
             "note": note,
         },
         requested_contents=parse_requested_contents(requested_contents),
+        force_regenerate_formats=parse_force_regenerate_formats(force_regenerate_formats),
         keep_photo_ids=parse_keep_photo_ids(keep_photo_ids),
         photo_descriptions=parse_photo_descriptions(photo_descriptions),
         existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),
         files=_clean_files(files),
     )
 
-
 @router.delete("/sales-registrations/{registration_id}", status_code=204)
 async def delete_sales_registration_route(registration_id: UUID, db: Session = Depends(get_db)):
     delete_sales_registration(db=db, registration_id=registration_id)
+@router.get("/external/sales-deliveries", response_model=ExternalSalesDeliveryListResponse)
+async def list_external_sales_deliveries_route(
+    user_id: UUID,
+    delivery_date_from: str,
+    delivery_date_to: str,
+    db: Session = Depends(get_db),
+):
+    return await list_external_sales_deliveries(
+        db=db,
+        user_id=user_id,
+        delivery_date_from=delivery_date_from,
+        delivery_date_to=delivery_date_to,
+    )
+
+
+@router.post("/sales-registrations/import", response_model=SalesRegistrationResponse)
+async def import_external_sales_registration_route(
+    user_id: UUID = Form(...),
+    delivery_payload: str = Form(...),
+    note: str | None = Form(default=None),
+    requested_contents: str | None = Form(default=None),
+    photo_descriptions: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    return await import_external_sales_registration(
+        db=db,
+        user_id=user_id,
+        delivery_payload=parse_delivery_payload(delivery_payload),
+        note=note,
+        requested_contents=parse_requested_contents(requested_contents),
+        photo_descriptions=parse_photo_descriptions(photo_descriptions),
+        files=_clean_files(files),
+    )
 
 
 @router.post("/service-registrations", response_model=ServiceRegistrationResponse)
@@ -156,6 +226,7 @@ async def create_service_registration_route(
     branch_name: str | None = Form(default=None),
     note: str | None = Form(default=None),
     requested_contents: str | None = Form(default=None),
+    force_regenerate_formats: str | None = Form(default=None),
     photo_descriptions: str | None = Form(default=None),
     files: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
@@ -175,6 +246,7 @@ async def create_service_registration_route(
             "note": note,
         },
         requested_contents=parse_requested_contents(requested_contents),
+        force_regenerate_formats=parse_force_regenerate_formats(force_regenerate_formats),
         photo_descriptions=parse_photo_descriptions(photo_descriptions),
         files=_clean_files(files),
     )
@@ -204,6 +276,7 @@ async def update_service_registration_route(
     branch_name: str | None = Form(default=None),
     note: str | None = Form(default=None),
     requested_contents: str | None = Form(default=None),
+    force_regenerate_formats: str | None = Form(default=None),
     keep_photo_ids: str | None = Form(default=None),
     photo_descriptions: str | None = Form(default=None),
     existing_photo_descriptions: str | None = Form(default=None),
@@ -226,6 +299,7 @@ async def update_service_registration_route(
             "note": note,
         },
         requested_contents=parse_requested_contents(requested_contents),
+        force_regenerate_formats=parse_force_regenerate_formats(force_regenerate_formats),
         keep_photo_ids=parse_keep_photo_ids(keep_photo_ids),
         photo_descriptions=parse_photo_descriptions(photo_descriptions),
         existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),
@@ -253,6 +327,7 @@ async def create_grooming_registration_route(
     branch_name: str | None = Form(default=None),
     note: str | None = Form(default=None),
     requested_contents: str | None = Form(default=None),
+    force_regenerate_formats: str | None = Form(default=None),
     photo_descriptions: str | None = Form(default=None),
     files: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
@@ -274,6 +349,7 @@ async def create_grooming_registration_route(
             "note": note,
         },
         requested_contents=parse_requested_contents(requested_contents),
+        force_regenerate_formats=parse_force_regenerate_formats(force_regenerate_formats),
         photo_descriptions=parse_photo_descriptions(photo_descriptions),
         files=_clean_files(files),
     )
@@ -305,6 +381,7 @@ async def update_grooming_registration_route(
     branch_name: str | None = Form(default=None),
     note: str | None = Form(default=None),
     requested_contents: str | None = Form(default=None),
+    force_regenerate_formats: str | None = Form(default=None),
     keep_photo_ids: str | None = Form(default=None),
     photo_descriptions: str | None = Form(default=None),
     existing_photo_descriptions: str | None = Form(default=None),
@@ -329,6 +406,7 @@ async def update_grooming_registration_route(
             "note": note,
         },
         requested_contents=parse_requested_contents(requested_contents),
+        force_regenerate_formats=parse_force_regenerate_formats(force_regenerate_formats),
         keep_photo_ids=parse_keep_photo_ids(keep_photo_ids),
         photo_descriptions=parse_photo_descriptions(photo_descriptions),
         existing_photo_descriptions=parse_existing_photo_descriptions(existing_photo_descriptions),

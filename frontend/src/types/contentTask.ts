@@ -1,5 +1,5 @@
 export type SourceType = "sale" | "service" | "grooming";
-export type ContentFormat = "blog" | "instagram";
+export type ContentFormat = "blog" | "instagram" | "facebook";
 export type TaskStatus = "pending" | "in_progress" | "completed" | "failed" | "skipped";
 
 export interface ContentTaskResult {

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { motion } from "motion/react";
-import { LayoutTemplate, BoxSelect, Loader2, Sparkles } from "lucide-react";
+import { LayoutTemplate, BoxSelect, Loader2, Sparkles, FileText, Instagram, LayoutDashboard, Facebook } from "lucide-react";
 import { SelectDropdown } from "../../../components/shared/SelectDropdown";
 
 interface GenerationPromptProps {
@@ -83,10 +83,10 @@ export function GenerationPrompt({
             icon={<LayoutTemplate className="w-4 h-4 text-[#3721ED]" />}
             label="템플릿"
             value={template} 
-            options={["뉴스레터", "인스타그램", "블로그"]} 
+            options={["뉴스레터", "인스타그램", "블로그", "페이스북"]} 
             onChange={setTemplate} 
           />
-          {template !== "인스타그램" && (
+          {(template === "블로그" || template === "뉴스레터") && (
             <SelectDropdown 
               icon={<BoxSelect className="w-4 h-4 text-emerald-500" />}
               label="옵션"

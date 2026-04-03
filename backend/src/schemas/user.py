@@ -25,6 +25,21 @@ class UserUpdate(BaseModel):
     profile_image_url: Optional[str] = None
 
 
+class UserEmployeeProfileResponse(BaseModel):
+    employee_id: UUID
+    company_code: Optional[str] = None
+    work_unit_type: Optional[str] = None
+    branch_name: Optional[str] = None
+    position: Optional[str] = None
+
+
+class UserUiPermissionsResponse(BaseModel):
+    can_manage_sales: bool = False
+    can_manage_service: bool = False
+    can_manage_grooming: bool = False
+    can_manage_employees: bool = False
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -36,5 +51,7 @@ class UserResponse(BaseModel):
     company_name: Optional[str]
     job_title: Optional[str]
     profile_image_url: Optional[str]
+    employee_profile: Optional[UserEmployeeProfileResponse] = None
+    ui_permissions: UserUiPermissionsResponse = Field(default_factory=UserUiPermissionsResponse)
     created_at: datetime
     updated_at: datetime

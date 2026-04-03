@@ -1,30 +1,94 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { Sparkles, Mail, Lock, User, Briefcase, Building2, ArrowRight, Camera, Plus } from "lucide-react";
+import { Sparkles, Mail, Lock, Building2, Briefcase, ArrowRight, Camera, Plus, MapPin, User, AlertCircle } from "lucide-react";
 import { useAuthStore } from "../../store/useAuthStore";
+import { employeeService, SignupOptionsResponse } from "../../services/api/employeeService";
 
 export function SignupPage() {
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");
-  const [email, setEmail] = useState("");
-  const [company, setCompany] = useState("");
-  const [password, setPassword] = useState("");
-  const [avatar, setAvatar] = useState<string | undefined>(undefined);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const signup = useAuthStore((state) => state.signup);
 
+  // API Master Data
+  const [options, setOptions] = useState<SignupOptionsResponse | null>(null);
+
+  // Input fields
+  const [name, setName] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState("");
+  const [selectedWorkUnit, setSelectedWorkUnit] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
+
+  const [loginId, setLoginId] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [avatar, setAvatar] = useState<string | undefined>(undefined);
+
+  // State
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorText, setErrorText] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    employeeService.getSignupOptions().then(setOptions).catch(console.error);
+  }, []);
+
+  // When Company changes, reset descendants
+  useEffect(() => {
+    setSelectedWorkUnit("");
+    setSelectedBranch("");
+  }, [selectedCompany]);
+
+  // When WorkUnit changes, reset descendants
+  useEffect(() => {
+    setSelectedBranch("");
+  }, [selectedWorkUnit]);
+
+  // Clear error if name/company selection changes
+  useEffect(() => {
+    if (name || selectedCompany || selectedWorkUnit || selectedBranch) {
+      setErrorText("");
+    }
+  }, [name, selectedCompany, selectedWorkUnit, selectedBranch]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && role && email && password) {
-      try {
-        await signup(name, role, email, company, avatar, password);
-        navigate("/");
-      } catch (err) {
-        // error is handled inside signup with alert
+    setErrorText("");
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!selectedCompany || !selectedWorkUnit || !selectedBranch) {
+      setErrorText("회사, 소속유형, 소속명을 모두 선택해주세요.");
+      return;
+    }
+
+    if (!emailPattern.test(loginId.trim())) {
+      setErrorText("로그인 ID는 이메일 형식으로 입력해주세요.");
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      setErrorText("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await signup(
+        loginId,
+        password,
+        name,
+        selectedCompany,
+        selectedWorkUnit,
+        selectedBranch,
+        avatar
+      );
+      navigate("/");
+    } catch (err: any) {
+      if (err.message === "409_CONFLICT") {
+        setErrorText("이미 연결된 계정이 있습니다. 다른 정보를 확인해주세요.");
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -38,6 +102,10 @@ export function SignupPage() {
       reader.readAsDataURL(file);
     }
   };
+
+  const companyObj = options?.companies.find(c => c.code === selectedCompany);
+  const workUnitObj = companyObj?.workUnitTypes.find(w => w.code === selectedWorkUnit);
+  const branches = workUnitObj?.branches || [];
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] flex items-center justify-center p-4">
@@ -56,133 +124,197 @@ export function SignupPage() {
         </div>
 
         <div className="text-center mb-6 relative z-10">
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">계정 만들기</h1>
-          <p className="text-slate-500 text-sm">팀을 이끌어갈 AI 콘텐츠를 시작하세요</p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">회원가입</h1>
+          <p className="text-slate-500 text-sm">실제 직원 정보와 연결된 계정을 생성합니다.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10 mt-2">
-          {/* Integrated Profile Header: Avatar + Name/Role */}
-          <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center bg-slate-50/50 p-5 rounded-2xl border border-slate-100 mb-2">
-            <div className="flex-shrink-0 flex flex-col items-center">
-              <div className="relative">
-                <motion.div 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="group relative w-20 h-20 rounded-full bg-white border border-slate-100 shadow-sm flex items-center justify-center cursor-pointer overflow-hidden transition-all duration-300"
-                >
-                  {avatar ? (
-                    <img src={avatar} alt="Profile preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="flex items-center justify-center w-full h-full bg-indigo-50/30">
-                      <User className="w-8 h-8 text-indigo-200" />
-                    </div>
-                  )}
-                  
-                  <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
-                    <Plus className="w-5 h-5 text-white" />
+          
+          {/* 아바타 선택 영역 */}
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <motion.div 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => fileInputRef.current?.click()}
+                className="group relative w-20 h-20 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center cursor-pointer overflow-hidden transition-all duration-300"
+              >
+                {avatar ? (
+                  <img src={avatar} alt="Profile preview" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex items-center justify-center w-full h-full bg-slate-50 text-slate-400">
+                    <User className="w-8 h-8" />
                   </div>
-                </motion.div>
+                )}
+                
+                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                  <Plus className="w-5 h-5 text-white" />
+                </div>
+              </motion.div>
 
-                <button 
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute -bottom-0.5 -right-0.5 w-7 h-7 bg-[#3721ED] rounded-full shadow-lg border-2 border-white flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all z-20"
+              <button 
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -bottom-0.5 -right-0.5 w-7 h-7 bg-[#3721ED] rounded-full shadow-md border-2 border-white flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all z-20"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*" 
+              onChange={handleImageChange} 
+            />
+          </div>
+
+          <div className="space-y-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+            {/* Inline Error */}
+            {errorText && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mb-2 text-xs font-semibold text-rose-500 bg-rose-50 p-2.5 rounded-lg flex items-center gap-1.5 border border-rose-100"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {errorText}
+              </motion.div>
+            )}
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">이름</label>
+              <div className="relative">
+                <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="text" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="홍길동"
+                  required
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">회사 선택</label>
+              <div className="relative">
+                <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select 
+                  value={selectedCompany}
+                  onChange={e => setSelectedCompany(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] transition-all text-sm text-slate-700 appearance-none"
+                  required
                 >
-                  <Camera className="w-3.5 h-3.5" />
-                </button>
+                  <option value="">회사를 선택하세요</option>
+                  {options?.companies.map(c => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
               </div>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handleImageChange} 
-              />
-              <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-tighter">사진 등록</p>
             </div>
 
-            <div className="flex-1 w-full space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">이름</label>
-                <div className="relative">
-                  <User className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input 
-                    type="text" 
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="홍길동"
-                    required
-                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
-                  />
-                </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">소속유형 선택</label>
+              <div className="relative">
+                <Briefcase className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select 
+                  value={selectedWorkUnit}
+                  onChange={e => setSelectedWorkUnit(e.target.value)}
+                  disabled={!selectedCompany}
+                  className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] transition-all text-sm text-slate-700 appearance-none disabled:bg-slate-100 disabled:opacity-70"
+                  required
+                >
+                  <option value="">소속유형 선택</option>
+                  {companyObj?.workUnitTypes.map(w => (
+                    <option key={w.code} value={w.code}>{w.label}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
               </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">직책</label>
-                <div className="relative">
-                  <Briefcase className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input 
-                    type="text" 
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    placeholder="마케팅 매니저"
-                    required
-                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
-                  />
-                </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">소속명 선택</label>
+              <div className="relative">
+                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select 
+                  value={selectedBranch}
+                  onChange={e => setSelectedBranch(e.target.value)}
+                  disabled={!selectedWorkUnit}
+                  className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/20 focus:border-[#3721ED] transition-all text-sm text-slate-700 appearance-none disabled:bg-slate-100 disabled:opacity-70"
+                  required
+                >
+                  <option value="">소속명 선택</option>
+                  {branches.length === 0 && selectedWorkUnit && (
+                    <option value="" disabled>등록된 소속이 없습니다</option>
+                  )}
+                  {branches.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
               </div>
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">소속(회사)</label>
-            <div className="relative">
-              <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input 
-                type="text" 
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                placeholder="KCC오토"
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
-              />
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">이메일</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="email" 
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="example@kcc.co.kr"
+                  required
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">이메일</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                required
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
-              />
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">비밀번호</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="최소 8자 이상"
+                  required
+                  minLength={8}
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-700 block mb-1.5">비밀번호</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="최소 8자 이상"
-                required
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
-              />
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1.5">비밀번호 확인</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input 
+                  type="password" 
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  placeholder="비밀번호 다시 입력"
+                  required
+                  minLength={8}
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
+                />
+              </div>
             </div>
           </div>
 
           <button 
             type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-[#3721ED] text-white py-3.5 rounded-xl font-semibold shadow-md shadow-[#3721ED]/20 hover:bg-[#2c1ac0] hover:-translate-y-0.5 transition-all mt-6"
+            disabled={isLoading}
+            className="w-full flex items-center justify-center gap-2 bg-[#3721ED] text-white py-3.5 rounded-xl font-semibold shadow-md shadow-[#3721ED]/20 hover:bg-[#2c1ac0] hover:-translate-y-0.5 transition-all mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            시작하기 <ArrowRight className="w-4 h-4 ml-1" />
+            {isLoading ? '가입 중...' : '계정 생성하기'} <ArrowRight className="w-4 h-4 ml-1" />
           </button>
         </form>
 

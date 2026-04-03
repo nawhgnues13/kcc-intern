@@ -10,6 +10,7 @@ import { EmailSendModal } from "../features/newsletter/components/EmailSendModal
 import { ImageReplaceModal } from "../features/newsletter/components/ImageReplaceModal";
 import { BlogViewer } from "../features/newsletter/components/BlogViewer";
 import { InstagramViewer } from "../features/newsletter/components/InstagramViewer";
+import { FacebookViewer } from "../features/newsletter/components/FacebookViewer";
 import { ModalLayout } from "../components/shared/ModalLayout";
 import { Trash2, ExternalLink, X, FileText, Image as ImageIcon, Link2 } from "lucide-react";
 import { AnimatePresence } from "motion/react";
@@ -56,8 +57,12 @@ export function WorkspacePage() {
     setTemplate(tempTemplate);
     setHeaderFooter(tempHeaderFooter);
     
-    // Update local format instantly so the UI switches between EditorPanel <-> BlogViewer
-    const newFormat = tempTemplate === '인스타그램' ? 'instagram' : (tempTemplate === '블로그' ? 'blog' : 'newsletter');
+    // Update local format instantly so the UI switches between EditorPanel <-> BlogViewer <-> FacebookViewer
+    const newFormat = 
+      tempTemplate === '인스타그램' ? 'instagram' : 
+      tempTemplate === '블로그' ? 'blog' : 
+      tempTemplate === '페이스북' ? 'facebook' : 
+      'newsletter';
     setContentFormat(newFormat);
 
     // Save to DB immediately if we have an articleId
@@ -68,7 +73,11 @@ export function WorkspacePage() {
           title: newsletterTitle,
           bodyContent: typeof newsletterContent === 'string' ? JSON.parse(newsletterContent) : newsletterContent,
           contentFormat: newFormat,
-          templateStyle: tempTemplate === '블로그' ? tempHeaderFooter : (tempTemplate === '인스타그램' ? 'instagram_default' : `${tempTemplate} / ${tempHeaderFooter}`)
+          templateStyle: 
+            tempTemplate === '블로그' ? tempHeaderFooter : 
+            tempTemplate === '인스타그램' ? 'instagram_default' : 
+            tempTemplate === '페이스북' ? 'facebook_page_basic' : 
+            `${tempTemplate} / ${tempHeaderFooter}`
         });
       } catch (err) {
         console.error("Failed to save template style:", err);
@@ -122,6 +131,11 @@ export function WorkspacePage() {
             setHeaderFooter(articleData.templateStyle);
             setTempTemplate('블로그');
             setTempHeaderFooter(articleData.templateStyle);
+          } else if (articleData.contentFormat === 'facebook') {
+            setTemplate('페이스북');
+            setHeaderFooter('facebook_page_basic');
+            setTempTemplate('페이스북');
+            setTempHeaderFooter('facebook_page_basic');
           } else {
             // Newsletter format: handles "Platform / Style" or just "Style" (legacy/direct ID)
             const parts = articleData.templateStyle.split(' / ');
@@ -231,6 +245,11 @@ export function WorkspacePage() {
       {/* CENTER PANEL: Editor & Preview */}
       {contentFormat === 'instagram' ? (
         <InstagramViewer
+          platformOutput={platformOutput}
+          fallbackContent={newsletterContent}
+        />
+      ) : contentFormat === 'facebook' ? (
+        <FacebookViewer
           platformOutput={platformOutput}
           fallbackContent={newsletterContent}
         />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { ArrowRight, FileText, LayoutDashboard, Instagram, BookOpen, Sparkles } from "lucide-react";
+import { ArrowRight, FileText, LayoutDashboard, Instagram, Facebook, BookOpen, Sparkles } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useSessionStore } from "../store/useSessionStore";
 import { newsletterService } from "../services/api/newsletterService";
@@ -11,6 +11,7 @@ const TEMPLATES = [
   { id: "뉴스레터", name: "뉴스레터", icon: <FileText className="w-6 h-6" />, color: "from-blue-500 to-cyan-500", desc: "전문적인 기업용 뉴스레터" },
   { id: "인스타그램", name: "인스타그램", icon: <Instagram className="w-6 h-6" />, color: "from-pink-500 to-orange-400", desc: "시각적이고 트렌디한 피드 문구" },
   { id: "블로그", name: "블로그", icon: <LayoutDashboard className="w-6 h-6" />, color: "from-emerald-500 to-teal-400", desc: "SEO 최적화된 정보성 블로그 글" },
+  { id: "페이스북", name: "페이스북", icon: <Facebook className="w-6 h-6" />, color: "from-blue-700 to-sky-500", desc: "신뢰감 있는 페이스북 페이지 포스트" },
 ];
 
 export function HomePage() {

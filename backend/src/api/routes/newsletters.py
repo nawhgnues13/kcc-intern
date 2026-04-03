@@ -36,13 +36,124 @@ from src.services.newsletter_service import (
 )
 
 router = APIRouter(prefix="/api/newsletters", tags=["newsletters"])
-ALLOWED_CONTENT_FORMATS = {"newsletter", "blog", "instagram"}
+ALLOWED_CONTENT_FORMATS = {"newsletter", "blog", "instagram", "facebook", "kakao"}
 ALLOWED_BLOG_TEMPLATE_STYLES = {
     "blog_naver_basic",
     "blog_html",
     "blog_markdown",
 }
 ALLOWED_INSTAGRAM_TEMPLATE_STYLES = {"instagram_default"}
+ALLOWED_FACEBOOK_TEMPLATE_STYLES = {"facebook_page_basic"}
+ALLOWED_KAKAO_TEMPLATE_STYLES = {"kakao_channel_basic"}
+FACEBOOK_DEFAULT_TEMPLATE_STYLE = "facebook_page_basic"
+
+
+async def _parse_generate_form(
+    request: Request,
+    *,
+    forced_content_format: str | None = None,
+    forced_template_style: str | None = None,
+) -> dict[str, object]:
+    form = await request.form()
+
+    try:
+        user_id = UUID(str(form["user_id"]))
+    except KeyError as exc:
+        raise HTTPException(status_code=422, detail="user_id is required.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="user_id must be a valid UUID.") from exc
+
+    content_task_id = None
+    raw_content_task_id = form.get("content_task_id")
+    if raw_content_task_id:
+        try:
+            content_task_id = UUID(str(raw_content_task_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="content_task_id must be a valid UUID.",
+            ) from exc
+
+    content_format = forced_content_format or str(form.get("content_format", "")).strip()
+    template_style = forced_template_style or str(form.get("template_style", "")).strip()
+    instruction = str(form.get("instruction", "")).strip()
+
+    if not content_format:
+        raise HTTPException(status_code=422, detail="content_format is required.")
+    if not template_style:
+        raise HTTPException(status_code=422, detail="template_style is required.")
+    if not instruction:
+        raise HTTPException(status_code=422, detail="instruction is required.")
+    if content_format not in ALLOWED_CONTENT_FORMATS:
+        raise HTTPException(
+            status_code=422,
+            detail="content_format must be one of: newsletter, blog, instagram, facebook, kakao.",
+        )
+    if content_format == "blog" and template_style not in ALLOWED_BLOG_TEMPLATE_STYLES:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "For blog content, template_style must be one of: "
+                "blog_naver_basic, blog_html, blog_markdown."
+            ),
+        )
+    if (
+        content_format == "instagram"
+        and template_style not in ALLOWED_INSTAGRAM_TEMPLATE_STYLES
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="For instagram content, template_style must be: instagram_default.",
+        )
+    if (
+        content_format == "facebook"
+        and template_style not in ALLOWED_FACEBOOK_TEMPLATE_STYLES
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="For facebook content, template_style must be: facebook_page_basic.",
+        )
+    if (
+        content_format == "kakao"
+        and template_style not in ALLOWED_KAKAO_TEMPLATE_STYLES
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="For kakao content, template_style must be: kakao_channel_basic.",
+        )
+
+    urls = [
+        value.strip()
+        for value in form.getlist("urls")
+        if isinstance(value, str) and value.strip()
+    ]
+    invalid_urls = [value for value in urls if not value.startswith(("http://", "https://"))]
+    if invalid_urls:
+        raise HTTPException(
+            status_code=422,
+            detail="All urls values must be absolute URLs starting with http:// or https://.",
+        )
+    url_names = [
+        str(value).strip()
+        for value in form.getlist("url_names")
+        if isinstance(value, str)
+    ]
+    files = [
+        value
+        for value in form.getlist("files")
+        if isinstance(value, StarletteUploadFile) and getattr(value, "filename", "")
+    ]
+
+    return {
+        "user_id": user_id,
+        "content_task_id": content_task_id,
+        "content_format": content_format,
+        "template_style": template_style,
+        "instruction": instruction,
+        "urls": urls,
+        "url_names": url_names,
+        "files": files,
+    }
 
 
 @router.post(
@@ -90,90 +201,78 @@ async def generate_newsletter_route(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    form = await request.form()
-
-    try:
-        user_id = UUID(str(form["user_id"]))
-    except KeyError as exc:
-        raise HTTPException(status_code=422, detail="user_id is required.") from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail="user_id must be a valid UUID.") from exc
-
-    content_task_id = None
-    raw_content_task_id = form.get("content_task_id")
-    if raw_content_task_id:
-        try:
-            content_task_id = UUID(str(raw_content_task_id))
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=422,
-                detail="content_task_id must be a valid UUID.",
-            ) from exc
-
-    content_format = str(form.get("content_format", "")).strip()
-    template_style = str(form.get("template_style", "")).strip()
-    instruction = str(form.get("instruction", "")).strip()
-
-    if not content_format:
-        raise HTTPException(status_code=422, detail="content_format is required.")
-    if not template_style:
-        raise HTTPException(status_code=422, detail="template_style is required.")
-    if not instruction:
-        raise HTTPException(status_code=422, detail="instruction is required.")
-    if content_format not in ALLOWED_CONTENT_FORMATS:
-        raise HTTPException(
-            status_code=422,
-            detail="content_format must be one of: newsletter, blog, instagram.",
-        )
-    if content_format == "blog" and template_style not in ALLOWED_BLOG_TEMPLATE_STYLES:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                "For blog content, template_style must be one of: "
-                "blog_naver_basic, blog_html, blog_markdown."
-            ),
-        )
-    if (
-        content_format == "instagram"
-        and template_style not in ALLOWED_INSTAGRAM_TEMPLATE_STYLES
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail="For instagram content, template_style must be: instagram_default.",
-        )
-
-    urls = [
-        value.strip()
-        for value in form.getlist("urls")
-        if isinstance(value, str) and value.strip()
-    ]
-    invalid_urls = [value for value in urls if not value.startswith(("http://", "https://"))]
-    if invalid_urls:
-        raise HTTPException(
-            status_code=422,
-            detail="All urls values must be absolute URLs starting with http:// or https://.",
-        )
-    url_names = [
-        str(value).strip()
-        for value in form.getlist("url_names")
-        if isinstance(value, str)
-    ]
-    files = [
-        value
-        for value in form.getlist("files")
-        if isinstance(value, StarletteUploadFile) and getattr(value, "filename", "")
-    ]
+    parsed = await _parse_generate_form(request)
 
     return await generate_newsletter(
         db=db,
-        user_id=user_id,
-        content_task_id=content_task_id,
-        content_format=content_format,
-        template_style=template_style,
-        instruction=instruction,
-        urls=urls,
-        url_names=url_names,
-        files=files,
+        user_id=parsed["user_id"],
+        content_task_id=parsed["content_task_id"],
+        content_format=parsed["content_format"],
+        template_style=parsed["template_style"],
+        instruction=parsed["instruction"],
+        urls=parsed["urls"],
+        url_names=parsed["url_names"],
+        files=parsed["files"],
+    )
+
+
+@router.post(
+    "/generate-facebook",
+    response_model=NewsletterGenerateResponse,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": [
+                            "user_id",
+                            "instruction",
+                        ],
+                        "properties": {
+                            "user_id": {"type": "string", "format": "uuid"},
+                            "content_task_id": {"type": "string", "format": "uuid"},
+                            "instruction": {"type": "string"},
+                            "urls": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "url_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "files": {
+                                "type": "array",
+                                "items": {"type": "string", "format": "binary"},
+                            },
+                        },
+                    }
+                }
+            },
+        }
+    },
+)
+async def generate_facebook_route(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    parsed = await _parse_generate_form(
+        request,
+        forced_content_format="facebook",
+        forced_template_style=FACEBOOK_DEFAULT_TEMPLATE_STYLE,
+    )
+
+    return await generate_newsletter(
+        db=db,
+        user_id=parsed["user_id"],
+        content_task_id=parsed["content_task_id"],
+        content_format="facebook",
+        template_style=FACEBOOK_DEFAULT_TEMPLATE_STYLE,
+        instruction=parsed["instruction"],
+        urls=parsed["urls"],
+        url_names=parsed["url_names"],
+        files=parsed["files"],
     )
 
 

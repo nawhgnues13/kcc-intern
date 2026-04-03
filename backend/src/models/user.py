@@ -26,7 +26,7 @@ class User(Base):
     login_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    role: Mapped[str] = mapped_column(String(30), nullable=False, default="admin")
+    role: Mapped[str] = mapped_column(String(30), nullable=False, default="staff")
     company_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     job_title: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     profile_image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

@@ -39,23 +39,27 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="text-center mb-8 relative z-10">
+        <div className="text-center mb-6 relative z-10">
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight mb-2">환영합니다!</h1>
-          <p className="text-slate-500 text-sm">KCCNewsletter 계정으로 계속하기</p>
+          <p className="text-slate-500 text-sm">팀을 이끌어갈 AI 콘텐츠를 시작하세요</p>
+        </div>
+
+        <div className="mb-6 mx-2 p-3 bg-blue-50 border border-blue-100 rounded-xl relative z-10 text-center">
+          <p className="text-xs text-blue-700 font-medium">직원 정보와 연결된 계정으로 로그인해주세요.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 relative z-10">
           <div>
-            <label className="text-sm font-semibold text-slate-700 block mb-2">이메일</label>
+            <label className="text-xs font-semibold text-slate-700 block mb-1.5">이메일</label>
             <div className="relative">
-              <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
+                placeholder="example@kcc.co.kr"
                 required
-                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3721ED]/50 focus:border-[#3721ED] transition-all text-slate-700 text-sm placeholder-slate-400"
               />
             </div>
           </div>
@@ -88,8 +92,18 @@ export function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-8 text-center text-sm text-slate-500 relative z-10">
-          계정이 없으신가요? <Link to="/signup" className="font-semibold text-[#3721ED] hover:text-[#2c1ac0] transition-colors">가입하기</Link>
+        <div className="mt-8 relative z-10">
+          <div className="relative flex items-center py-5">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-4 text-slate-400 text-xs">계정이 없으신가요?</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+          <div className="text-center pb-2">
+            <Link to="/signup" className="inline-flex items-center justify-center w-full bg-white border-2 border-[#3721ED] text-[#3721ED] py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors shadow-sm">
+              신규 회원가입 (직원 연결)
+            </Link>
+            <p className="mt-3 text-[11px] text-slate-400">회원가입 시 이름, 회사, 소속을 먼저 입력합니다.</p>
+          </div>
         </div>
       </motion.div>
     </div>

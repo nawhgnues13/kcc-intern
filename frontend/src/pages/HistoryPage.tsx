@@ -8,6 +8,7 @@ import {
   FileText,
   Image as ImageIcon,
   Instagram,
+  Facebook,
   LayoutDashboard,
   Search,
   Trash2,
@@ -28,6 +29,8 @@ const getContentTypeLabel = (format?: string) => {
       return "블로그";
     case "instagram":
       return "인스타그램";
+    case "facebook":
+      return "페이스북";
     default:
       return "문서";
   }
@@ -39,6 +42,8 @@ const getContentTypeIcon = (label: string) => {
       return FileText;
     case "인스타그램":
       return Instagram;
+    case "페이스북":
+      return Facebook;
     default:
       return LayoutDashboard;
   }
@@ -50,6 +55,8 @@ const getContentTypeGradient = (label: string) => {
       return "from-blue-500 to-cyan-500";
     case "인스타그램":
       return "from-pink-500 to-orange-400";
+    case "페이스북":
+      return "from-blue-700 to-sky-500";
     default:
       return "from-emerald-500 to-teal-400";
   }

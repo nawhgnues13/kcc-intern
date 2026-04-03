@@ -6,6 +6,7 @@ import {
   User,
   FileText,
   Instagram,
+  Facebook,
   Upload,
   CheckCircle2,
   AlertCircle,
@@ -19,6 +20,7 @@ import { contentTaskService } from "../../../services/api/contentTaskService";
 import { ContentTaskResult, InstagramPublishResponse } from "../../../types/contentTask";
 import { BlogViewer } from "../../newsletter/components/BlogViewer";
 import { InstagramViewer } from "../../newsletter/components/InstagramViewer";
+import { FacebookViewer } from "../../newsletter/components/FacebookViewer";
 
 interface ResultDetailDrawerProps {
   result: ContentTaskResult | null;
@@ -61,6 +63,7 @@ export function ResultDetailDrawer({ result, onClose }: ResultDetailDrawerProps)
   }, [result]);
 
   const isInstagram = result?.contentFormat === "instagram";
+  const isFacebook = result?.contentFormat === "facebook";
   const instagramPublish = articleData?.instagramPublish;
   const instagramPermalink = instagramPublish?.publishedPermalink;
   const platformOutput = articleData?.platformOutput;
@@ -133,9 +136,12 @@ export function ResultDetailDrawer({ result, onClose }: ResultDetailDrawerProps)
   }
 
   function downloadAllImages() {
-    instagramImageUrls.forEach((url: string, index: number) => {
+    const urls = isInstagram || isFacebook ? platformOutput?.imageDownloadUrls : [];
+    if (!Array.isArray(urls)) return;
+    
+    urls.forEach((url: string, index: number) => {
       window.setTimeout(() => {
-        downloadImage(url, `instagram-image-${index + 1}.jpg`);
+        downloadImage(url, `${result?.contentFormat}-image-${index + 1}.jpg`);
       }, index * 150);
     });
   }
@@ -166,15 +172,17 @@ export function ResultDetailDrawer({ result, onClose }: ResultDetailDrawerProps)
               <div className="flex gap-4">
                 <div
                   className={`mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-sm ${
-                    isInstagram ? "bg-gradient-to-br from-pink-500 to-orange-400 text-white" : "bg-[#3721ED] text-white"
+                    isInstagram ? "bg-gradient-to-br from-pink-500 to-orange-400 text-white" : 
+                    isFacebook ? "bg-[#1877F2] text-white" : 
+                    "bg-[#3721ED] text-white"
                   }`}
                 >
-                  {isInstagram ? <Instagram className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
+                  {isInstagram ? <Instagram className="h-6 w-6" /> : isFacebook ? <Facebook className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
                     <h2 className="text-2xl font-black tracking-tight text-slate-800">
-                      {isInstagram ? "인스타그램 게시물 관리" : "블로그 콘텐츠 상세보기"}
+                      {isInstagram ? "인스타그램 게시물 관리" : isFacebook ? "페이스북 콘텐츠 상세" : "블로그 콘텐츠 상세보기"}
                     </h2>
                     {isInstagram && (instagramPublish || publishFeedback) && (
                       <span
@@ -219,22 +227,25 @@ export function ResultDetailDrawer({ result, onClose }: ResultDetailDrawerProps)
               </button>
             </div>
 
-            {/* Action Bar integrated into header for Instagram */}
-            {isInstagram && (
+            {/* Action Bar for Instagram/Facebook */}
+            {(isInstagram || isFacebook) && (
               <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-50 bg-white px-8 py-4">
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={handlePublishInstagram}
-                    disabled={publishing}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3721ED] px-5 text-sm font-bold text-white shadow-lg shadow-[#3721ED]/20 transition-all hover:translate-y-[-1px] hover:bg-[#2c1ac0] active:translate-y-0 disabled:opacity-50"
-                  >
-                    <Upload className="h-4 w-4" />
-                    {publishing ? "게시 중..." : "인스타 즉시 게시"}
-                  </button>
+                  {isInstagram && (
+                    <>
+                      <button
+                        onClick={handlePublishInstagram}
+                        disabled={publishing}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#3721ED] px-5 text-sm font-bold text-white shadow-lg shadow-[#3721ED]/20 transition-all hover:translate-y-[-1px] hover:bg-[#2c1ac0] active:translate-y-0 disabled:opacity-50"
+                      >
+                        <Upload className="h-4 w-4" />
+                        {publishing ? "게시 중..." : "인스타 즉시 게시"}
+                      </button>
+                      <div className="mx-1 h-10 w-[1px] bg-slate-100" />
+                    </>
+                  )}
 
-                  <div className="mx-1 h-10 w-[1px] bg-slate-100" />
-
-                  {instagramPermalink && (
+                  {isInstagram && instagramPermalink && (
                     <a
                       href={instagramPermalink}
                       target="_blank"
@@ -246,24 +257,25 @@ export function ResultDetailDrawer({ result, onClose }: ResultDetailDrawerProps)
                     </a>
                   )}
 
-                  {instagramImageUrls.length > 0 && (
-                    <button
-                      onClick={() => downloadImage(instagramImageUrls[0], "instagram-1.jpg")}
-                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
-                    >
-                      <Download className="h-4 w-4 text-slate-400" />
-                      기본 이미지
-                    </button>
-                  )}
-
-                  {instagramImageUrls.length > 1 && (
-                    <button
-                      onClick={downloadAllImages}
-                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
-                    >
-                      <Download className="h-4 w-4 text-slate-400" />
-                      전체 다운로드
-                    </button>
+                  {platformOutput?.imageDownloadUrls?.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => downloadImage(platformOutput.imageDownloadUrls[0], `${result.contentFormat}-1.jpg`)}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                      >
+                        <Download className="h-4 w-4 text-slate-400" />
+                        기본 이미지
+                      </button>
+                      {platformOutput.imageDownloadUrls.length > 1 && (
+                        <button
+                          onClick={downloadAllImages}
+                          className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50"
+                        >
+                          <Download className="h-4 w-4 text-slate-400" />
+                          전체 다운로드
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -277,7 +289,9 @@ export function ResultDetailDrawer({ result, onClose }: ResultDetailDrawerProps)
                   </button>
                   <button
                     onClick={() => handleCopy("all")}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-pink-500 to-orange-400 px-5 text-sm font-bold text-white shadow-lg shadow-pink-500/20 transition-all hover:translate-y-[-1px] active:translate-y-0"
+                    className={`inline-flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-bold text-white shadow-lg transition-all hover:translate-y-[-1px] active:translate-y-0 ${
+                      isInstagram ? 'bg-gradient-to-r from-pink-500 to-orange-400 shadow-pink-500/20' : 'bg-[#1877F2] shadow-blue-500/20 hover:bg-[#166fe5]'
+                    }`}
                   >
                     <Copy className="h-4 w-4" />
                     전체 복사
@@ -312,6 +326,11 @@ export function ResultDetailDrawer({ result, onClose }: ResultDetailDrawerProps)
                       platformOutput={articleData.platformOutput}
                       fallbackContent={JSON.stringify(articleData.bodyContent)}
                       showControls={false}
+                    />
+                  ) : isFacebook ? (
+                    <FacebookViewer
+                      platformOutput={articleData.platformOutput}
+                      fallbackContent={JSON.stringify(articleData.bodyContent)}
                     />
                   ) : (
                     <BlogViewer

@@ -10,6 +10,17 @@ export interface LoginResponse {
     company_name?: string;
     job_title?: string;
     profile_image_url?: string;
+    ui_permissions: {
+      can_manage_sales: boolean;
+      can_manage_service: boolean;
+      can_manage_grooming: boolean;
+      can_manage_employees: boolean;
+    };
+    employee_profile?: {
+      company_code: string;
+      work_unit_type: string;
+      branch_name: string;
+    };
   };
 }
 

@@ -22,6 +22,7 @@ class Employee(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     company_code: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     department_code: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    work_unit_type: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     position: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     branch_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

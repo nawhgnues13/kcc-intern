@@ -25,11 +25,36 @@ export interface CreateEmployeeRequest {
   branchName: string;
 }
 
+export interface WorkUnitTypeOption {
+  code: string;
+  label: string;
+  branches: string[];
+}
+
+export interface CompanyOption {
+  code: string;
+  label: string;
+  workUnitTypes: WorkUnitTypeOption[];
+}
+
+export interface SignupOptionsResponse {
+  companies: CompanyOption[];
+}
+
 export const employeeService = {
-  getEmployees: async (): Promise<Employee[]> => {
-    const response = await apiClient.get('/api/employees');
+  getEmployees: async (companyCode?: string, workUnitType?: string, branchName?: string): Promise<Employee[]> => {
+    const params: any = {};
+    if (companyCode) params.company_code = companyCode;
+    if (workUnitType) params.work_unit_type = workUnitType;
+    if (branchName) params.branch_name = branchName;
+    
+    const response = await apiClient.get('/api/employees', { params });
     // Handle both direct array or { items: [] } pattern
     return Array.isArray(response) ? response : response.items || [];
+  },
+  
+  getSignupOptions: async (): Promise<SignupOptionsResponse> => {
+    return apiClient.get('/api/employees/signup-options');
   },
   
   createEmployee: async (data: CreateEmployeeRequest): Promise<Employee> => {

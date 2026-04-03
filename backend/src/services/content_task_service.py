@@ -7,7 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.models.article import Article
+from src.models.article_ai_message import ArticleAIMessage
 from src.models.article_image import ArticleImage
+from src.models.article_publication import ArticlePublication
+from src.models.article_source import ArticleSource
 from src.models.content_task import ContentTask
 from src.models.grooming_registration import GroomingPhoto, GroomingRegistration
 from src.models.sales_registration import SalesPhoto, SalesRegistration
@@ -22,7 +25,7 @@ from src.schemas.crm import (
 from src.services.employee_link_service import get_user_for_employee
 
 ALLOWED_TASK_SOURCE_TYPES = {"sale", "service", "grooming"}
-ALLOWED_TASK_CONTENT_FORMATS = {"blog", "instagram", "newsletter"}
+ALLOWED_TASK_CONTENT_FORMATS = {"blog", "instagram", "newsletter", "facebook", "kakao"}
 ALLOWED_TASK_STATUSES = {"pending", "in_progress", "completed", "failed", "skipped"}
 DEFAULT_AUTO_REQUESTED_CONTENTS = [
     {"content_format": "blog", "template_style": "blog_naver_basic"},
@@ -31,6 +34,8 @@ DEFAULT_AUTO_REQUESTED_CONTENTS = [
 DEFAULT_TEMPLATE_STYLES_BY_FORMAT = {
     "blog": "blog_naver_basic",
     "instagram": "instagram_default",
+    "facebook": "facebook_page_basic",
+    "kakao": "kakao_channel_basic",
 }
 
 
@@ -107,6 +112,7 @@ def _load_sales_source(db: Session, source_id: UUID) -> dict[str, Any]:
         for part in [
             registration.customer_name,
             registration.vehicle_model,
+            registration.class_name,
             registration.branch_name,
         ]
         if part
@@ -115,12 +121,19 @@ def _load_sales_source(db: Session, source_id: UUID) -> dict[str, Any]:
         "registrationId": registration.id,
         "employeeId": registration.employee_id,
         "employeeName": registration.employee_name,
+        "externalContractNo": registration.external_contract_no,
         "customerName": registration.customer_name,
         "customerPhone": registration.customer_phone,
         "customerEmail": registration.customer_email,
         "vehicleModel": registration.vehicle_model,
+        "className": registration.class_name,
+        "carYear": registration.car_year,
+        "exteriorColor": registration.exterior_color,
+        "interiorColor": registration.interior_color,
         "salePrice": float(registration.sale_price) if registration.sale_price is not None else None,
+        "invoicePrice": float(registration.invoice_price) if registration.invoice_price is not None else None,
         "saleDate": registration.sale_date,
+        "contractDate": registration.contract_date,
         "branchName": registration.branch_name,
         "note": registration.note,
         "photos": serialized_photos,
@@ -130,8 +143,14 @@ def _load_sales_source(db: Session, source_id: UUID) -> dict[str, Any]:
         f"Employee: {registration.employee_name}\n"
         "Customer: 고객님\n"
         f"Vehicle model: {registration.vehicle_model}\n"
+        f"Class name: {registration.class_name or ''}\n"
+        f"Car year: {registration.car_year or ''}\n"
+        f"Exterior color: {registration.exterior_color or ''}\n"
+        f"Interior color: {registration.interior_color or ''}\n"
         f"Sale price: {registration.sale_price}\n"
+        f"Invoice price: {registration.invoice_price}\n"
         f"Sale date: {registration.sale_date.isoformat()}\n"
+        f"Contract date: {registration.contract_date.isoformat() if registration.contract_date else ''}\n"
         f"Branch: {registration.branch_name or ''}\n"
         f"Note: {_anonymize_customer_reference(registration.note, registration.customer_name)}"
     )
@@ -417,6 +436,49 @@ def get_content_task(db: Session, task_id: UUID) -> ContentTask:
     return task
 
 
+def _delete_linked_article(db: Session, article_id: UUID | None) -> None:
+    if article_id is None:
+        return
+
+    article = db.scalar(
+        select(Article).where(
+            Article.id == article_id,
+        )
+    )
+    if article is None:
+        return
+
+    for publication in db.scalars(
+        select(ArticlePublication).where(ArticlePublication.article_id == article_id)
+    ):
+        db.delete(publication)
+
+    for message in db.scalars(
+        select(ArticleAIMessage).where(ArticleAIMessage.article_id == article_id)
+    ):
+        db.delete(message)
+
+    # These rows already support soft deletion, so keep an audit trail for regenerated content.
+    deleted_at = datetime.now()
+    for image in db.scalars(
+        select(ArticleImage).where(
+            ArticleImage.article_id == article_id,
+            ArticleImage.deleted_at.is_(None),
+        )
+    ):
+        image.deleted_at = deleted_at
+
+    for source in db.scalars(
+        select(ArticleSource).where(
+            ArticleSource.article_id == article_id,
+            ArticleSource.deleted_at.is_(None),
+        )
+    ):
+        source.deleted_at = deleted_at
+
+    article.deleted_at = deleted_at
+
+
 def ensure_content_tasks(
     *,
     db: Session,
@@ -424,6 +486,7 @@ def ensure_content_tasks(
     source_id: UUID,
     assigned_employee_id: UUID,
     requested_contents: list[dict[str, str | None]],
+    force_regenerate_formats: set[str] | None = None,
 ) -> list[ContentTask]:
     if source_type not in ALLOWED_TASK_SOURCE_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported source type.")
@@ -432,6 +495,7 @@ def ensure_content_tasks(
     results: list[ContentTask] = []
     seen_formats: set[str] = set()
     normalized_contents = _normalize_requested_contents(requested_contents)
+    regenerate_formats = {item.strip().lower() for item in (force_regenerate_formats or set()) if item}
 
     for item in normalized_contents:
         content_format = (item.get("content_format") or "").strip().lower()
@@ -457,6 +521,14 @@ def ensure_content_tasks(
             existing.assigned_employee_id = assigned_employee_id
             existing.assigned_user_id = linked_user.id if linked_user else None
             existing.template_style = template_style
+            if content_format in regenerate_formats:
+                linked_article_id = existing.article_id
+                existing.article_id = None
+                existing.status = "pending"
+                existing.completed_at = None
+                existing.triggered_at = datetime.now()
+                db.flush()
+                _delete_linked_article(db, linked_article_id)
             results.append(existing)
             continue
 

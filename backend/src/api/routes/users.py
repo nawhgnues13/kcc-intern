@@ -8,6 +8,7 @@ from src.db import get_db
 from src.models.user import User
 from src.schemas.user import UserResponse
 from src.services.employee_link_service import sync_user_employee_link
+from src.services.user_profile_service import build_user_response
 from src.services.s3_service import upload_profile_image
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -24,7 +25,7 @@ async def get_user(user_id: UUID, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    return UserResponse.model_validate(user)
+    return build_user_response(db=db, user=user)
 
 
 @router.put("/{user_id}", response_model=UserResponse)
@@ -65,4 +66,4 @@ async def update_user(
     sync_user_employee_link(db, user)
     db.commit()
     db.refresh(user)
-    return UserResponse.model_validate(user)
+    return build_user_response(db=db, user=user)

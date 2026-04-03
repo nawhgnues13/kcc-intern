@@ -1,8 +1,10 @@
 import { Link, useLocation } from "react-router";
 import { Sparkles, Home, PenSquare, Clock, Settings, BookOpen, Users, Car, Wrench, Scissors } from "lucide-react";
+import { useAuthStore } from "../../store/useAuthStore";
 
 export function Sidebar() {
   const location = useLocation();
+  const user = useAuthStore((state) => state.user);
 
   const navItems = [
     { label: "홈", path: "/", icon: <Home className="w-5 h-5" /> },
@@ -13,11 +15,11 @@ export function Sidebar() {
   ];
 
   const crmItems = [
-    { label: "직원 관리", path: "/employees", icon: <Users className="w-5 h-5" /> },
-    { label: "차량 판매 관리", path: "/crm/sales", icon: <Car className="w-5 h-5" /> },
-    { label: "차량 수리 관리", path: "/crm/service", icon: <Wrench className="w-5 h-5" /> },
-    { label: "애견 미용 관리", path: "/crm/grooming", icon: <Scissors className="w-5 h-5" /> },
-  ];
+    { label: "직원 관리", path: "/employees", icon: <Users className="w-5 h-5" />, visible: user?.ui_permissions?.can_manage_employees },
+    { label: "차량 판매 관리", path: "/crm/sales", icon: <Car className="w-5 h-5" />, visible: user?.ui_permissions?.can_manage_sales },
+    { label: "차량 수리 관리", path: "/crm/service", icon: <Wrench className="w-5 h-5" />, visible: user?.ui_permissions?.can_manage_service },
+    { label: "애견 미용 관리", path: "/crm/grooming", icon: <Scissors className="w-5 h-5" />, visible: user?.ui_permissions?.can_manage_grooming },
+  ].filter(item => !!item.visible);
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 h-full flex flex-col flex-shrink-0 z-20">
@@ -59,31 +61,33 @@ export function Sidebar() {
           </div>
         </div>
 
-        <div>
-          <div className="text-xs font-semibold text-slate-400 mb-3 px-2 uppercase tracking-wider">임시 DB (운영)</div>
-          <div className="space-y-1">
-            {crmItems.map((item) => {
-              const isActive = location.pathname.startsWith(item.path);
-              
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                    isActive 
-                      ? "bg-slate-800 text-white" 
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                  }`}
-                >
-                  <div className={`${isActive ? "text-white" : "text-slate-400"}`}>
-                    {item.icon}
-                  </div>
-                  {item.label}
-                </Link>
-              );
-            })}
+        {crmItems.length > 0 && (
+          <div>
+            <div className="text-xs font-semibold text-slate-400 mb-3 px-2 uppercase tracking-wider">임시 DB (운영)</div>
+            <div className="space-y-1">
+              {crmItems.map((item) => {
+                const isActive = location.pathname.startsWith(item.path);
+                
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      isActive 
+                        ? "bg-slate-800 text-white" 
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                    }`}
+                  >
+                    <div className={`${isActive ? "text-white" : "text-slate-400"}`}>
+                      {item.icon}
+                    </div>
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Bottom Actions */}

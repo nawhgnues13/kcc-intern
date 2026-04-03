@@ -18,6 +18,7 @@ class EmployeeCreateRequest(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=30)
     company_code: Optional[str] = Field(default=None, max_length=30)
     department_code: Optional[str] = Field(default=None, max_length=50)
+    work_unit_type: Optional[str] = Field(default=None, max_length=30)
     position: Optional[str] = Field(default=None, max_length=120)
     branch_name: Optional[str] = Field(default=None, max_length=120)
 
@@ -35,6 +36,7 @@ class EmployeeResponse(BaseModel):
     phone: Optional[str]
     company_code: Optional[str]
     department_code: Optional[str]
+    work_unit_type: Optional[str]
     position: Optional[str]
     branch_name: Optional[str]
     linked_user_id: Optional[UUID] = None
@@ -47,6 +49,48 @@ class EmployeeListResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
     items: list[EmployeeResponse]
+
+
+class CompanyOptionResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    code: str
+    label: str
+
+
+class WorkUnitTypeOptionResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    code: str
+    label: str
+
+
+class BranchOptionResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    name: str
+
+
+class SignupWorkUnitTypeOptionResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    code: str
+    label: str
+    branches: list[str]
+
+
+class SignupCompanyOptionResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    code: str
+    label: str
+    work_unit_types: list[SignupWorkUnitTypeOptionResponse]
+
+
+class SignupOptionsResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    companies: list[SignupCompanyOptionResponse]
 
 
 class CustomerRecipient(BaseModel):
@@ -75,6 +119,7 @@ class CreatedTaskSummaryResponse(BaseModel):
     task_id: UUID
     content_format: str
     status: str
+    article_id: Optional[UUID] = None
 
 
 class RegistrationPhotoResponse(BaseModel):
@@ -92,12 +137,19 @@ class SalesRegistrationResponse(BaseModel):
     sales_registration_id: UUID
     employee_id: UUID
     employee_name: str
+    external_contract_no: Optional[str] = None
     customer_name: str
     customer_phone: Optional[str]
     customer_email: Optional[str]
     vehicle_model: str
+    class_name: Optional[str] = None
+    car_year: Optional[str] = None
+    exterior_color: Optional[str] = None
+    interior_color: Optional[str] = None
     sale_price: Optional[float]
+    invoice_price: Optional[float] = None
     sale_date: datetime
+    contract_date: Optional[datetime] = None
     branch_name: Optional[str]
     note: Optional[str]
     photos: list[RegistrationPhotoResponse]
@@ -110,6 +162,35 @@ class SalesRegistrationListResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
     items: list[SalesRegistrationResponse]
+
+
+class ExternalSalesDeliveryItemResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    showroom_name: str
+    department_name: Optional[str] = None
+    employee_name: str
+    customer_name: str
+    external_contract_no: str
+    vehicle_model: str
+    class_name: Optional[str] = None
+    car_year: Optional[str] = None
+    exterior_color: Optional[str] = None
+    interior_color: Optional[str] = None
+    sale_price: Optional[float] = None
+    invoice_price: Optional[float] = None
+    sale_date: datetime
+    contract_date: Optional[datetime] = None
+    is_imported: bool
+    sales_registration_id: Optional[UUID] = None
+    generated_contents: list[CreatedTaskSummaryResponse] = Field(default_factory=list)
+    raw_delivery: dict[str, Any]
+
+
+class ExternalSalesDeliveryListResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    items: list[ExternalSalesDeliveryItemResponse]
 
 
 class ServiceRegistrationResponse(BaseModel):

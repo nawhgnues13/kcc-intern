@@ -14,6 +14,7 @@ import { SalesRegistrationPage } from "./pages/crm/SalesRegistrationPage";
 import { ServiceRegistrationPage } from "./pages/crm/ServiceRegistrationPage";
 import { GroomingRegistrationPage } from "./pages/crm/GroomingRegistrationPage";
 import { GenerationResultsPage } from "./pages/GenerationResultsPage";
+import { RouteErrorPage } from "./pages/error/RouteErrorPage";
 import { useAuthStore } from "./store/useAuthStore";
 
 // Protected Route Wrapper
@@ -24,14 +25,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const router = createBrowserRouter([
-  // Public Auth Routes
-  { path: "/login", Component: LoginPage },
-  { path: "/signup", Component: SignupPage },
-  { path: "/forgot-password", Component: ForgotPasswordPage },
-  
-  // Protected App Routes
   {
     path: "/",
+    errorElement: <RouteErrorPage />,
     element: (
       <ProtectedRoute>
         <AppLayout />
@@ -53,4 +49,8 @@ export const router = createBrowserRouter([
       { path: "crm/grooming", Component: GroomingRegistrationPage },
     ],
   },
+  // Public Auth Routes
+  { path: "/login", Component: LoginPage },
+  { path: "/signup", Component: SignupPage },
+  { path: "/forgot-password", Component: ForgotPasswordPage },
 ]);

@@ -145,6 +145,27 @@ INSTAGRAM_TEMPLATE_GUIDANCE = """
 - A good flow is: hook -> short value explanation -> practical point -> soft CTA -> hashtags.
 """.strip()
 
+FACEBOOK_TEMPLATE_GUIDANCE = """
+- This is a Korean Facebook Page post for a brand or business account.
+- Favor a clearer explanatory tone than Instagram, but keep it readable and concise.
+- Write like a page operator introducing a useful update or review, not like a formal report.
+- Short paragraphs are preferred, but the overall flow can be slightly more descriptive than Instagram.
+- Use soft call-to-action wording near the end when appropriate.
+- Hashtags are optional and should be minimal if used at all.
+- Return structured bodyContent JSON only; do not include platformOutput.
+- Think in terms of a Page feed post that pairs well with 1-3 images and a short explanatory caption.
+""".strip()
+
+KAKAO_TEMPLATE_GUIDANCE = """
+- This is a Korean KakaoTalk Channel message draft for a business channel.
+- Write concise, practical copy suitable for a channel message rather than a long article.
+- The opening should immediately communicate the key point or benefit.
+- Keep paragraphs short and mobile-friendly.
+- End with a simple next action such as viewing details, contacting the branch, or checking more information.
+- Return structured bodyContent JSON only; do not include platformOutput.
+- Think in terms of text that can later be copied into a channel message with an image and one or two buttons.
+""".strip()
+
 CRM_GENERATION_GUIDANCE = """
 - This content is being generated from a CRM registration with real business facts and real uploaded photos.
 - Treat the CRM source data as the primary source of truth.
@@ -175,6 +196,20 @@ CRM_SOURCE_FORMAT_GUIDANCE = {
 - If dealer or branch info is in the CRM source, it is acceptable to end with a short professional closing or contact cue.
 - Use search only for stable, directly relevant model-family facts. Do not invent exact specs, exact options, or customer-specific motivations.
 """.strip(),
+    ("sale", "facebook"): """
+- Write this as a Facebook Page post for an official dealership account.
+- The tone can be slightly more explanatory than Instagram, but should remain easy to scan.
+- Introduce the delivered vehicle, mention the appealing points supported by the CRM facts, and close with a gentle inquiry or contact cue.
+- Use the registered photos as the primary visual anchors and avoid overly promotional wording.
+- Use search only for stable, broad model-family context. Do not invent exact specs, options, or customer-specific motivations.
+""".strip(),
+    ("sale", "kakao"): """
+- Write this as a KakaoTalk Channel promotional message draft for a vehicle delivery or model introduction.
+- Keep the message concise, warm, and immediately understandable on mobile.
+- Mention the model, a few attractive points supported by CRM facts, and end with a simple action cue.
+- Do not write like a long blog post; prioritize readability and immediacy.
+- Use search only for broad, stable model-family context. Do not invent exact specs or options.
+""".strip(),
     ("service", "blog"): """
 - Write this as a repair/service work log style blog post for an auto service shop.
 - The flow should feel like: symptom or issue -> diagnosis -> work performed -> result or takeaway.
@@ -195,6 +230,20 @@ CRM_SOURCE_FORMAT_GUIDANCE = {
 - Shop/location/contact style closing is acceptable if that fits the source tone.
 - Use search only for stable, directly relevant component or model context. Never invent exact repair details not present in the CRM source.
 """.strip(),
+    ("service", "facebook"): """
+- Write this as a Facebook Page repair/service post for an auto service center.
+- Focus on the issue, repair area, work performed, and outcome in a trustworthy, readable tone.
+- Use before/after or process photos as the visual basis when available.
+- The wording can be a little more descriptive than Instagram, but should still be concise and practical.
+- Use search only for broad, stable repair/component context. Never invent exact work details or costs not present in the source.
+""".strip(),
+    ("service", "kakao"): """
+- Write this as a KakaoTalk Channel message draft for an auto service update or repair review.
+- Keep it short and mobile-friendly.
+- Mention the vehicle, the repaired area or issue, and the result.
+- Use a practical, reassuring tone with a simple closing action cue.
+- Do not invent exact repair details beyond the CRM source.
+""".strip(),
     ("grooming", "blog"): """
 - Write this as a pet salon's own grooming blog post, not as a customer review diary.
 - The flow should feel like: pet introduction -> before condition or visit context -> today's grooming style or care focus -> after result -> care tip or warm closing.
@@ -213,6 +262,20 @@ CRM_SOURCE_FORMAT_GUIDANCE = {
 - Keep the text concise with soft line breaks and a friendly salon voice.
 - If the breed is known, you may use search for broad and stable breed/grooming context, but do not invent medical or temperament claims.
 - End with a short warm line or simple CTA that fits an Instagram salon account.
+""".strip(),
+    ("grooming", "facebook"): """
+- Write this as a Facebook Page post for a pet grooming salon.
+- Introduce today's grooming result in a warm salon-owner voice.
+- Mention the styling point or before/after change supported by the CRM facts and photos.
+- The tone can be slightly more explanatory than Instagram but should remain light and readable.
+- Use search only for broad, stable grooming context when helpful. Do not invent medical, allergy, or temperament claims.
+""".strip(),
+    ("grooming", "kakao"): """
+- Write this as a KakaoTalk Channel message draft for a pet grooming salon.
+- Keep it short, warm, and easy to read on mobile.
+- Emphasize today's grooming point and the after-result in a friendly salon tone.
+- End with a simple next-step cue such as inquiry, reservation, or more details.
+- Do not invent medical or temperament claims.
 """.strip(),
 }
 
@@ -334,6 +397,36 @@ def _build_generation_prompt(
                 "3) One practical takeaway or benefit point",
                 "4) Soft CTA",
                 "5) Natural hashtags matched to the post topic",
+            ]
+        )
+    elif content_format == "facebook":
+        prompt_sections.extend(
+            [
+                "",
+                "Facebook option guidance:",
+                FACEBOOK_TEMPLATE_GUIDANCE,
+                "",
+                "Important: return structured bodyContent JSON only. Do not include platformOutput for facebook.",
+                "Recommended structure for facebook:",
+                "1) Clear opening line with the main update or review theme",
+                "2) 2-4 compact paragraphs explaining the key points",
+                "3) Optional image blocks where they improve readability",
+                "4) A soft CTA or inquiry cue near the end",
+            ]
+        )
+    elif content_format == "kakao":
+        prompt_sections.extend(
+            [
+                "",
+                "Kakao option guidance:",
+                KAKAO_TEMPLATE_GUIDANCE,
+                "",
+                "Important: return structured bodyContent JSON only. Do not include platformOutput for kakao.",
+                "Recommended structure for kakao:",
+                "1) Immediate key message in the first line",
+                "2) 1-3 short practical paragraphs",
+                "3) Optional image block when useful",
+                "4) A simple action cue at the end",
             ]
         )
 
@@ -525,6 +618,18 @@ def edit_newsletter_content(
             "\nInstagram option guidance:\n"
             f"{INSTAGRAM_TEMPLATE_GUIDANCE}\n"
             "\nImportant: keep returning structured bodyContent JSON and include platformOutput for instagram.\n"
+        )
+    elif content_format == "facebook":
+        guidance_section = (
+            "\nFacebook option guidance:\n"
+            f"{FACEBOOK_TEMPLATE_GUIDANCE}\n"
+            "\nImportant: keep returning structured bodyContent JSON only. Do not include platformOutput for facebook.\n"
+        )
+    elif content_format == "kakao":
+        guidance_section = (
+            "\nKakao option guidance:\n"
+            f"{KAKAO_TEMPLATE_GUIDANCE}\n"
+            "\nImportant: keep returning structured bodyContent JSON only. Do not include platformOutput for kakao.\n"
         )
 
     prompt = f"""
