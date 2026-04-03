@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Wrench, Database } from "lucide-react";
+import { Plus, Search, Wrench, Database, CheckSquare, Square, Edit3 } from "lucide-react";
 import { RegistrationTable, ColumnDef } from "../../features/crm/components/RegistrationTable";
 import { crmService, ServiceRegistration } from "../../services/api/crmService";
 import { ModalLayout } from "../../components/shared/ModalLayout";
 import { EmployeeSelect } from "../../features/crm/components/EmployeeSelect";
 import { PhotoUploader } from "../../features/crm/components/PhotoUploader";
-import { CheckSquare, Square } from "lucide-react";
 
 // --- Custom Brand SVG Icons ---
-const InstagramIcon = ({ className = "" }) => (
+const InstagramIcon = ({ className = "" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="ig-grad" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
@@ -22,14 +21,14 @@ const InstagramIcon = ({ className = "" }) => (
   </svg>
 );
 
-const FacebookIcon = ({ className = "" }) => (
+const FacebookIcon = ({ className = "" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect width="24" height="24" rx="6" fill="#1877F2"/>
     <path d="M15.5 12L16 8.5H12.5V6.5C12.5 5.5 13 4.5 14.5 4.5H16.5V1.5C16.5 1.5 14.5 1 13 1C9.5 1 7.5 3 7.5 6.5V8.5H4.5V12H7.5V20H12.5V12H15.5Z" fill="white"/>
   </svg>
 );
 
-const BlogIcon = ({ className = "" }) => (
+const BlogIcon = ({ className = "" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect width="24" height="24" rx="6" fill="#03C75A"/>
     <rect x="5.5" y="6.5" width="13" height="11" rx="2" stroke="white" strokeWidth="1.5"/>
@@ -43,15 +42,17 @@ const CONTENT_CHANNELS = [
   { id: "facebook", label: "페이스북", format: "facebook", template: "facebook_page_basic", defaultChecked: false, icon: FacebookIcon },
 ];
 
+const EMPTY_PHOTOS: any[] = [];
+
 export function ServiceRegistrationPage() {
   const [data, setData] = useState<ServiceRegistration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [mode, setMode] = useState<'new' | 'view' | 'edit' | null>(null);
+  const [entrySource, setEntrySource] = useState<'manual' | 'crm' | null>(null);
   const [editingItem, setEditingItem] = useState<ServiceRegistration | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isViewMode, setIsViewMode] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
   const [snapshot, setSnapshot] = useState<any>(null);
   
   const [formData, setFormData] = useState<Record<string, any>>({
@@ -63,11 +64,13 @@ export function ServiceRegistrationPage() {
   const [keepPhotoIds, setKeepPhotoIds] = useState<string[]>([]);
   const [existingDescriptions, setExistingDescriptions] = useState<Record<string, string>>({});
   const [newDescriptions, setNewDescriptions] = useState<string[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
 
-  // 채널 선택 상태
-  const [selectedChannels, setSelectedChannels] = useState<string[]>(
-    CONTENT_CHANNELS.filter(c => c.defaultChecked).map(c => c.id)
-  );
+  const STATUS_ICONS = {
+    blog: BlogIcon,
+    instagram: InstagramIcon,
+    facebook: FacebookIcon,
+  };
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -121,15 +124,14 @@ export function ServiceRegistrationPage() {
       }).filter(Boolean) as string[] || [];
       setSelectedChannels(generatedIds);
 
-      // Snapshot
       setSnapshot({
         formData: currentFormData,
         keepPhotoIds: item.photos.map(p => p.photoId),
         existingDescriptions: exDesc,
         generatedIds: generatedIds
       });
-      setIsViewMode(true);
-      setIsEditMode(false);
+      setMode('view');
+      setEntrySource(item.importId ? 'crm' : 'manual');
     } else {
       setEditingItem(null);
       setFormData({
@@ -139,13 +141,87 @@ export function ServiceRegistrationPage() {
       setKeepPhotoIds([]);
       setExistingDescriptions({});
       setSelectedChannels(CONTENT_CHANNELS.filter(c => c.defaultChecked).map(c => c.id));
-      setIsViewMode(false);
-      setIsEditMode(true);
+      setMode('new');
+      setEntrySource('manual');
       setSnapshot(null);
     }
     setNewFiles([]);
     setNewDescriptions([]);
     setIsModalOpen(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      employee_id: "", customer_name: "", customer_phone: "", customer_email: "",
+      vehicle_model: "", service_date: "", repair_details: "", repair_cost: 0, branch_name: "", note: ""
+    });
+    setEditingItem(null);
+    setKeepPhotoIds([]);
+    setExistingDescriptions({});
+    setNewFiles([]);
+    setNewDescriptions([]);
+    setSelectedChannels([]);
+  };
+
+  const handleCloseModal = () => {
+    if (mode === 'new' || mode === 'edit') {
+        const isChanged = mode === 'edit' ? checkIsBaseDataChanged() : checkIsDataChangedForNew();
+        if (isChanged) {
+            if (!window.confirm("변경 사항이 저장되지 않았습니다. 정말 닫으시겠습니까?")) return;
+        }
+    }
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleCancelAction = () => {
+    if (mode === 'edit') {
+      if (checkIsBaseDataChanged()) {
+        if (!window.confirm("변경 내용을 버리고 상세 보기로 돌아가시겠습니까?")) return;
+      }
+      if (snapshot) {
+        setFormData(snapshot.formData);
+        setKeepPhotoIds(snapshot.keepPhotoIds);
+        setExistingDescriptions(snapshot.existingDescriptions);
+        setSelectedChannels(snapshot.generatedIds);
+        setMode('view');
+      }
+    } else {
+      handleCloseModal();
+    }
+  };
+
+  const enterEditMode = () => {
+    setMode('edit');
+    if (snapshot) setSelectedChannels(snapshot.generatedIds);
+  };
+
+  const checkIsDataChangedForNew = () => {
+    const hasNote = formData.note && formData.note.trim() !== "";
+    const hasPhotos = newFiles.length > 0;
+    const hasChannels = selectedChannels.length > 0;
+    const hasRepairDetails = formData.repair_details && formData.repair_details.trim() !== "";
+    return hasNote || hasPhotos || hasChannels || hasRepairDetails;
+  };
+
+  const checkIsBaseDataChanged = () => {
+    if (!snapshot) return false;
+    const fieldsToCompare = [
+        'customer_name', 'customer_phone', 'customer_email', 'vehicle_model', 
+        'service_date', 'repair_details', 'repair_cost', 'branch_name', 'note'
+    ];
+    for (const f of fieldsToCompare) {
+        if (formData[f] !== snapshot.formData[f]) return true;
+    }
+    if (newFiles.length > 0) return true;
+    if (keepPhotoIds.length !== snapshot.keepPhotoIds.length) return true;
+    for (const id of snapshot.keepPhotoIds) {
+        if (!keepPhotoIds.includes(id)) return true;
+    }
+    for (const id of keepPhotoIds) {
+        if (existingDescriptions[id] !== snapshot.existingDescriptions[id]) return true;
+    }
+    return false;
   };
 
   const handleCreateSinglePost = async (format: string) => {
@@ -179,50 +255,13 @@ export function ServiceRegistrationPage() {
     }
   };
 
-  const handleCancelEdit = () => {
-    if (checkIsBaseDataChanged()) {
-      if (!window.confirm("변경 내용을 버리고 상세 보기로 돌아가시겠습니까?")) return;
-    }
-    
-    if (snapshot) {
-      setFormData(snapshot.formData);
-      setKeepPhotoIds(snapshot.keepPhotoIds);
-      setExistingDescriptions(snapshot.existingDescriptions);
-      setSelectedChannels(snapshot.generatedIds);
-    }
-    
-    setIsViewMode(true);
-    setIsEditMode(false);
+  const toggleChannel = (id: string) => {
+    setSelectedChannels(prev => 
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
   };
 
-  const enterEditMode = () => {
-    setIsViewMode(false);
-    setIsEditMode(true);
-    if (snapshot) setSelectedChannels(snapshot.generatedIds);
-  };
-
-  const checkIsBaseDataChanged = () => {
-    if (!snapshot) return false;
-    const fieldsToCompare = [
-        'customer_name', 'customer_phone', 'customer_email', 'vehicle_model', 
-        'service_date', 'repair_details', 'repair_cost', 'branch_name', 'note'
-    ];
-    for (const f of fieldsToCompare) {
-        if (formData[f] !== snapshot.formData[f]) return true;
-    }
-    if (newFiles.length > 0) return true;
-    if (keepPhotoIds.length !== snapshot.keepPhotoIds.length) return true;
-    for (const id of snapshot.keepPhotoIds) {
-        if (!keepPhotoIds.includes(id)) return true;
-    }
-    for (const id of keepPhotoIds) {
-        if (existingDescriptions[id] !== snapshot.existingDescriptions[id]) return true;
-    }
-    return false;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -236,7 +275,6 @@ export function ServiceRegistrationPage() {
         return { content_format: ch.format, template_style: ch.template };
       });
 
-      // Regeneration Identification
       const isBaseDataChanged = checkIsBaseDataChanged();
       const previouslyGeneratedFormats = editingItem?.createdTasks?.map(t => t.contentFormat.toLowerCase()) || [];
       
@@ -272,6 +310,7 @@ export function ServiceRegistrationPage() {
         );
       }
       setIsModalOpen(false);
+      resetForm();
       fetchData();
     } catch (err) {
       console.error(err);
@@ -285,11 +324,11 @@ export function ServiceRegistrationPage() {
     if (!editingItem) return;
     if (!window.confirm("정말 삭제하시겠습니까? 삭제된 데이터는 복구할 수 없습니다.")) return;
 
-    if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       await crmService.deleteServiceRegistration(editingItem.serviceRegistrationId);
       setIsModalOpen(false);
+      resetForm();
       fetchData();
     } catch (err) {
       console.error(err);
@@ -313,7 +352,7 @@ export function ServiceRegistrationPage() {
               const Icon = STATUS_ICONS[task.contentFormat.toLowerCase() as keyof typeof STATUS_ICONS];
               if (!Icon) return null;
               
-              const statusColors = {
+              const statusColors: Record<string, string> = {
                 completed: "text-emerald-500 bg-emerald-50 border-emerald-100",
                 pending: "text-amber-500 bg-amber-50 border-amber-100",
                 in_progress: "text-blue-500 bg-blue-50 border-blue-100",
@@ -325,7 +364,7 @@ export function ServiceRegistrationPage() {
                 <button
                   key={idx}
                   onClick={(e) => handleNavigateToResult(e, task.taskId, task.articleId)}
-                  className={`p-1.5 rounded-lg border transition-all hover:scale-110 ${statusColors[task.status as keyof typeof statusColors] || "text-slate-400"}`}
+                  className={`p-1.5 rounded-lg border transition-all hover:scale-110 ${statusColors[task.status] || "text-slate-400"}`}
                   title={`${task.contentFormat} (${task.status})`}
                 >
                   <Icon className="w-4 h-4" />
@@ -337,12 +376,6 @@ export function ServiceRegistrationPage() {
         )
       }
   ];
-
-  const STATUS_ICONS = {
-    blog: BlogIcon,
-    instagram: InstagramIcon,
-    facebook: FacebookIcon,
-  };
 
   return (
     <div className="flex-1 bg-[#F8F9FB] w-full h-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -371,13 +404,14 @@ export function ServiceRegistrationPage() {
           isLoading={isLoading}
           onRowClick={handleOpenModal}
           emptyMessage="차량 수리 이력이 없습니다."
+          onAddClick={() => handleOpenModal()}
         />
 
-        <ModalLayout isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidthClass="max-w-3xl">
+        <ModalLayout isOpen={isModalOpen} onClose={handleCloseModal} maxWidthClass="max-w-3xl">
           <div className="flex flex-col h-[85vh] bg-white rounded-3xl overflow-hidden relative">
             {/* X Close Button */}
             <button 
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseModal}
               className="absolute top-4 right-6 z-30 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
             >
               <Plus className="w-6 h-6 rotate-45" />
@@ -386,89 +420,87 @@ export function ServiceRegistrationPage() {
             {/* Header */}
             <div className="shrink-0 px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white z-20">
               <h2 className="text-xl font-bold text-slate-800">
-                {isViewMode ? '수리 내역 상세' : '내용 수정 및 재생성'}
+                {mode === 'new' ? '수리 내역 신규 등록' : mode === 'view' ? '수리 내역 상세' : '내용 수정 및 재생성'}
               </h2>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-6">
               {/* Warning Banner for Edit Mode */}
-              {isEditMode && snapshot && (
+              {mode === 'edit' && (
                 <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex gap-3 items-start">
                   <Wrench className="w-5 h-5 text-amber-500 mt-0.5" />
                   <div>
                     <h4 className="text-sm font-bold text-amber-800">내용 수정 시 안내</h4>
-                    <p className="text-xs text-amber-700 leading-relaxed mt-1">메모, 사진, 사진 설명을 수정하면 기존 생성 게시물이 최신 내용 기준으로 다시 생성됩니다. 기존 결과물은 새로운 정보로 대체됩니다.</p>
+                    <p className="text-xs text-amber-700 leading-relaxed mt-1">기본 정보 혹은 사진 설명을 수정하면 기존 생성 게시물이 최신 내용 기준으로 다시 생성됩니다. 기존 결과물은 새로운 정보로 대체됩니다.</p>
                   </div>
                 </div>
               )}
 
-              {/* View/Edit Form Section */}
+              {/* Form Section */}
               <div className="space-y-6">
-                  {/* Basic Info Section */}
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Database className="w-5 h-5 text-[#3721ED]" />
                         <h3 className="text-lg font-bold text-slate-800">기본 등록 정보</h3>
                       </div>
-                      {isEditMode && snapshot && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md">입력된 기본 정보는 수정할 수 없습니다</span>}
+                      {entrySource === 'crm' && (mode === 'new' || mode === 'edit') && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md">수리 기본 정보는 수정할 수 없습니다</span>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-4">
-                      {isEditMode && !snapshot ? (
-                        <>
-                          <div className="col-span-1">
-                            <label className="text-xs font-bold text-slate-600 block mb-1">고객명</label>
-                            <input required type="text" value={formData.customer_name} onChange={e => setFormData({...formData, customer_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" />
-                          </div>
-                          <div className="col-span-1">
-                            <label className="text-xs font-bold text-slate-600 block mb-1">차량 모델</label>
-                            <input required type="text" value={formData.vehicle_model} onChange={e => setFormData({...formData, vehicle_model: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" />
-                          </div>
-                          <div className="col-span-1">
-                            <label className="text-xs font-bold text-slate-600 block mb-1">담당 직원</label>
-                            <EmployeeSelect required value={formData.employee_id} onChange={(id) => setFormData({...formData, employee_id: id})} filterDepartmentCode="service_center" />
-                          </div>
-                          <div className="col-span-1">
-                            <label className="text-xs font-bold text-slate-600 block mb-1">수리 일시</label>
-                            <input required type="datetime-local" value={formData.service_date} onChange={e => setFormData({...formData, service_date: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" />
-                          </div>
-                          <div className="col-span-1">
-                            <label className="text-xs font-bold text-slate-600 block mb-1">수리 비용</label>
-                            <input required type="number" value={formData.repair_cost} onChange={e => setFormData({...formData, repair_cost: Number(e.target.value)})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" />
-                          </div>
-                          <div className="col-span-1">
-                            <label className="text-xs font-bold text-slate-600 block mb-1">전시장/지점</label>
-                            <input required type="text" value={formData.branch_name} onChange={e => setFormData({...formData, branch_name: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white" />
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">고객명</p><p className="text-sm font-semibold text-slate-700">{formData.customer_name || '-'}</p></div>
-                          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">차량 모델</p><p className="text-sm font-semibold text-slate-700">{formData.vehicle_model || '-'}</p></div>
-                          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">수리 일시</p><p className="text-sm font-semibold text-slate-700">{formData.service_date?.replace('T', ' ') || '-'}</p></div>
-                          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">수리 비용</p><p className="text-sm font-semibold text-slate-700">{Number(formData.repair_cost || 0).toLocaleString()}원</p></div>
-                          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">전시장/지점</p><p className="text-sm font-semibold text-slate-700">{formData.branch_name || '-'}</p></div>
-                        </>
-                      )}
-                      <div className="col-span-1 md:col-span-3 h-px bg-slate-50 my-2" />
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                        {[
+                            { label: '고객명', key: 'customer_name', type: 'text', required: true },
+                            { label: '연락처', key: 'customer_phone', type: 'text' },
+                            { label: '차량 모델', key: 'vehicle_model', type: 'text', required: true },
+                            { label: '담당 직원', key: 'employee_id', type: 'employee_select', required: true },
+                            { label: '수리 일시', key: 'service_date', type: 'datetime-local', required: true },
+                            { label: '수리 비용', key: 'repair_cost', type: 'number' },
+                            { label: '지점명', key: 'branch_name', type: 'text' },
+                        ].map(field => {
+                            const isReadOnly = mode === 'view' || (entrySource === 'crm' && (mode === 'new' || mode === 'edit'));
+                            
+                            return (
+                                <div key={field.key} className={field.type === 'datetime-local' ? 'col-span-1' : ''}>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
+                                        {field.label} {field.required && <span className="text-rose-500">*</span>}
+                                    </p>
+                                    {isReadOnly ? (
+                                        <p className="text-sm font-semibold text-slate-700 py-1.5 border-b border-transparent">
+                                            {field.key === 'repair_cost' ? Number(formData[field.key]).toLocaleString() + '원' : 
+                                             field.key === 'employee_id' ? (editingItem?.employeeName || '-') : formData[field.key] || '-'}
+                                        </p>
+                                    ) : field.type === 'employee_select' ? (
+                                        <EmployeeSelect value={formData[field.key]} onChange={(id) => setFormData({...formData, [field.key]: id})} filterDepartmentCode="service_center" />
+                                    ) : (
+                                        <input 
+                                            type={field.type} 
+                                            value={formData[field.key]} 
+                                            onChange={e => setFormData({...formData, [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value})}
+                                            className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:border-[#3721ED] focus:ring-1 focus:ring-[#3721ED]/10 outline-none transition-all"
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                     
-                    <div className="space-y-4">
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">수리 상세 내역</label>
-                            {isEditMode ? (
-                                <textarea required value={formData.repair_details} onChange={e => setFormData({...formData, repair_details: e.target.value})} rows={3} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white resize-none" />
-                            ) : (
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">수리 상세 내역</label>
+                            {mode === 'view' ? (
                                 <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl min-h-[60px] whitespace-pre-wrap">{formData.repair_details}</p>
+                            ) : (
+                                <textarea value={formData.repair_details} onChange={e => setFormData({...formData, repair_details: e.target.value})} rows={3} placeholder="수리 내역을 입력하세요." className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-sm bg-white resize-none focus:border-[#3721ED] focus:ring-1 focus:ring-[#3721ED]/10 transition-all outline-none" />
                             )}
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">특이사항 (노트)</label>
-                            {isEditMode ? (
-                                <textarea value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} rows={2} className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white resize-none" />
-                            ) : (
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">특이사항 (노트)</label>
+                            {mode === 'view' ? (
                                 <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl min-h-[40px] whitespace-pre-wrap">{formData.note || '등록된 메모가 없습니다.'}</p>
+                            ) : (
+                                <textarea value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} rows={2} placeholder="메모를 입력하세요." className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-sm bg-white resize-none focus:border-[#3721ED] focus:ring-1 focus:ring-[#3721ED]/10 transition-all outline-none" />
                             )}
                         </div>
                     </div>
@@ -476,11 +508,23 @@ export function ServiceRegistrationPage() {
 
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                     <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Plus className="w-4 h-4 text-slate-400" /> 사진 및 설명 ({editingItem?.photos.length || 0})
+                        <Plus className="w-4 h-4 text-slate-400" /> 사진 및 설명 ({mode === 'new' ? newFiles.length : (editingItem?.photos.length || 0)})
                     </h3>
-                    {isEditMode ? (
+                    {mode === 'view' ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {editingItem?.photos.map((p) => (
+                                <div key={p.photoId} className="group relative aspect-video rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+                                    <img src={p.fileUrl} className="w-full h-full object-cover" alt="Service Photo" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                                        <p className="text-[10px] text-white font-medium line-clamp-2">{p.photoDescription || '설명 없음'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {editingItem?.photos.length === 0 && <p className="col-span-full py-8 text-center text-sm text-slate-400">등록된 사진이 없습니다.</p>}
+                        </div>
+                    ) : (
                         <PhotoUploader 
-                            existingPhotos={editingItem?.photos || []}
+                            existingPhotos={mode === 'new' ? EMPTY_PHOTOS : (editingItem?.photos || EMPTY_PHOTOS)}
                             onKeepPhotosChange={setKeepPhotoIds}
                             newFiles={newFiles}
                             onNewFilesChange={setNewFiles}
@@ -498,59 +542,68 @@ export function ServiceRegistrationPage() {
                                 setNewDescriptions(updated);
                             }}
                         />
-                    ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {editingItem?.photos.map((p, idx) => (
-                                <div key={p.photoId} className="group relative aspect-video rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
-                                    <img src={p.fileUrl} className="w-full h-full object-cover" alt="Service Photo" />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                                        <p className="text-[10px] text-white font-medium line-clamp-2">{p.photoDescription || '설명 없음'}</p>
-                                    </div>
-                                </div>
-                            ))}
-                            {editingItem?.photos.length === 0 && <p className="col-span-full py-8 text-center text-sm text-slate-400">등록된 사진이 없습니다.</p>}
-                        </div>
                     )}
                   </div>
               </div>
 
-              {/* Generated Posts Section */}
+              {/* Channels Action Section */}
               <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-4">
-                    {isEditMode ? '재생성될 게시물' : '생성한 게시물'}
+                    {mode === 'new' ? '생성할 게시물 선택' : mode === 'edit' ? '재생성될 게시물' : '생성한 게시물'}
                   </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {CONTENT_CHANNELS.map(ch => {
                       const task = editingItem?.createdTasks?.find(t => t.contentFormat.toLowerCase() === ch.format);
                       const Icon = ch.icon;
+                      const isSelected = selectedChannels.includes(ch.id);
+                      
                       const isCompleted = task?.status === 'completed';
                       const isProcessing = task?.status === 'pending' || task?.status === 'in_progress';
                       const isFailed = task?.status === 'failed';
                       const isNotCreated = !task;
 
+                      if (mode === 'new') {
+                          return (
+                              <div 
+                                key={ch.id}
+                                onClick={() => toggleChannel(ch.id)}
+                                className={`flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
+                                    isSelected ? 'bg-white border-[#3721ED] shadow-md ring-2 ring-[#3721ED]/10' : 'bg-slate-50 border-slate-100 hover:border-slate-200'
+                                }`}
+                              >
+                                {isSelected ? <CheckSquare className="w-5 h-5 text-[#3721ED]" /> : <Square className="w-5 h-5 text-slate-400" />}
+                                <Icon className="w-5 h-5" />
+                                <span className={`text-sm font-bold ${isSelected ? 'text-[#3721ED]' : 'text-slate-600'}`}>{ch.label}</span>
+                              </div>
+                          );
+                      }
+
+                      if (mode === 'edit') {
+                        const isRegenerate = !isNotCreated;
+                        return (
+                            <div key={ch.id} className={`flex items-center gap-3 p-4 rounded-2xl border ${isRegenerate ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-slate-50/50 border-slate-100 opacity-60'}`}>
+                                <Icon className="w-5 h-5" />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-slate-700">{ch.label}</span>
+                                    {isRegenerate && <p className="text-[10px] text-blue-500 font-bold">변경 시 자동 재생성</p>}
+                                    {isNotCreated && <p className="text-[10px] text-slate-400">등록 후 개별 제작 가능</p>}
+                                </div>
+                            </div>
+                        );
+                      }
+
                       return (
                         <div 
                           key={ch.id} 
                           className={`flex flex-col p-4 rounded-2xl border transition-all ${
-                            isEditMode ? 
-                                (snapshot ? 
-                                    (isNotCreated ? 'bg-slate-50 opacity-40 border-slate-100' : 'bg-blue-50/30 border-blue-100 ring-1 ring-blue-100') :
-                                    (selectedChannels.includes(ch.id) ? 'bg-blue-50/30 border-blue-100 ring-1 ring-blue-100' : 'bg-slate-50 border-slate-200 opacity-60')
-                                ) :
-                                isCompleted ? 'bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50/50' : 
-                                isProcessing ? 'bg-amber-50/30 border-amber-100 animate-pulse' :
-                                isFailed ? 'bg-rose-50/30 border-rose-100 hover:bg-rose-50/50' :
-                                'bg-slate-50 border-slate-100 hover:bg-slate-100/50'
+                            isCompleted ? 'bg-emerald-50/30 border-emerald-100' : 
+                            isProcessing ? 'bg-amber-50/30 border-amber-100 animate-pulse' :
+                            isFailed ? 'bg-rose-50/30 border-rose-100' :
+                            'bg-slate-50 border-slate-100'
                           }`}
-                          onClick={() => {
-                            if (isEditMode && !snapshot) {
-                                setSelectedChannels(prev => prev.includes(ch.id) ? prev.filter(c => c !== ch.id) : [...prev, ch.id]);
-                            }
-                          }}
                         >
-                          {/* Card Content (same as Sales) */}
                           <div className="flex items-center justify-between mb-3">
                             <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-50">
                                 <Icon className="w-5 h-5" />
@@ -567,28 +620,23 @@ export function ServiceRegistrationPage() {
                           
                           <div className="flex-1">
                             <span className="text-sm font-bold text-slate-700 block mb-1">{ch.label}</span>
-                            {isEditMode && snapshot && !isNotCreated && <p className="text-[10px] text-blue-500 font-bold">내용 수정 시 자동 재생성</p>}
                           </div>
 
                           <div className="mt-4">
-                            {!isEditMode && (
-                                <>
-                                    {isCompleted && (
-                                        <button onClick={(e) => handleNavigateToResult(e, task.taskId, task.articleId)} className="w-full py-2 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 shadow-sm flex items-center justify-center gap-1.5 transition-all">
-                                            <Search className="w-3.5 h-3.5" /> 결과 보기
-                                        </button>
-                                    )}
-                                    {isNotCreated && (
-                                        <button onClick={() => handleCreateSinglePost(ch.format)} disabled={isSubmitting} className="w-full py-2 bg-[#3721ED] hover:bg-[#2c1ac0] text-white text-xs font-bold rounded-xl shadow-sm transition-all">
-                                            만들기
-                                        </button>
-                                    )}
-                                </>
+                            {isCompleted && (
+                                <button type="button" onClick={(e) => handleNavigateToResult(e, task.taskId, task.articleId)} className="w-full py-2 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-1.5">
+                                    <Search className="w-3.5 h-3.5" /> 결과 보기
+                                </button>
                             )}
-                            {isEditMode && !snapshot && (
-                                <div className="flex justify-end">
-                                    {selectedChannels.includes(ch.id) ? <CheckSquare className="w-5 h-5 text-[#3721ED]" /> : <Square className="w-5 h-5 text-slate-300" />}
-                                </div>
+                            {isNotCreated && (
+                                <button type="button" onClick={() => handleCreateSinglePost(ch.format)} disabled={isSubmitting} className="w-full py-2 bg-[#3721ED] hover:bg-[#2c1ac0] text-white text-[10px] font-bold rounded-xl shadow-sm transition-all disabled:opacity-50">
+                                    만들기
+                                </button>
+                            )}
+                            {isFailed && (
+                                <button type="button" onClick={() => handleCreateSinglePost(ch.format)} className="w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-xl border border-rose-100 transition-all font-bold">
+                                    재생성 요청
+                                </button>
                             )}
                           </div>
                         </div>
@@ -600,31 +648,42 @@ export function ServiceRegistrationPage() {
             </div>
             
             <div className="shrink-0 p-4 border-t border-slate-200 bg-white flex items-center justify-between">
-                <div>
-                   {isViewMode && editingItem && (
-                     <button type="button" onClick={handleDelete} disabled={isSubmitting} className="px-5 py-2.5 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors">
-                       삭제
-                     </button>
-                   )}
-                </div>
-                <div className="flex gap-2">
-                   {isViewMode ? (
-                     <button type="button" onClick={enterEditMode} className="px-6 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm flex items-center gap-2">
-                       내용 수정 후 재생성
-                     </button>
-                   ) : (
-                     <>
-                       <button type="button" onClick={handleCancelEdit} disabled={isSubmitting} className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">취소</button>
-                       <button 
-                         onClick={handleSubmit}
-                         disabled={isSubmitting || (snapshot && !checkIsBaseDataChanged()) || (!snapshot && selectedChannels.length === 0)} 
-                         className="px-6 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm disabled:opacity-50"
-                       >
-                         {isSubmitting ? '처리 중...' : snapshot ? '재생성 및 반영' : '등록 및 생성'}
-                       </button>
-                     </>
-                   )}
-                </div>
+              <div>
+                {mode === 'view' && (
+                  <button type="button" onClick={handleDelete} disabled={isSubmitting} className="px-5 py-2.5 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors">
+                    삭제
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {mode === 'new' ? (
+                  <>
+                    <button type="button" onClick={handleCloseModal} disabled={isSubmitting} className="px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">취소</button>
+                    <button 
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || selectedChannels.length === 0} 
+                        className="px-8 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                    >
+                        {isSubmitting ? '진행 중...' : '등록 및 생성'}
+                    </button>
+                  </>
+                ) : mode === 'view' ? (
+                  <button onClick={enterEditMode} className="px-8 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm">
+                    내용 수정 후 재생성
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" onClick={handleCancelAction} disabled={isSubmitting} className="px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">취소</button>
+                    <button 
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || !checkIsBaseDataChanged()} 
+                        className="px-8 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                    >
+                        {isSubmitting ? '저장 중...' : '재생성 및 반영'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </ModalLayout>

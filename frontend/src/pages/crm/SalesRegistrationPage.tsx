@@ -69,8 +69,8 @@ export function SalesRegistrationPage() {
   const [editingItem, setEditingItem] = useState<SalesRegistration | null>(null);
   const [importPayload, setImportPayload] = useState<ExternalSalesDelivery | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isViewMode, setIsViewMode] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
+  const [mode, setMode] = useState<'new' | 'view' | 'edit' | null>(null);
+  const [entrySource, setEntrySource] = useState<'manual' | 'crm' | null>(null);
   const [snapshot, setSnapshot] = useState<any>(null);
   
   const [formData, setFormData] = useState<Record<string, any>>({
@@ -154,8 +154,15 @@ export function SalesRegistrationPage() {
       branch_name: item.showroomName,
     }));
     
-    setIsViewMode(false);
-    setIsEditMode(true); // New imports are immediately in edit mode
+    setMode('new');
+    setEntrySource('crm');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenManualNew = () => {
+    resetForm();
+    setMode('new');
+    setEntrySource('manual');
     setIsModalOpen(true);
   };
 
@@ -180,7 +187,6 @@ export function SalesRegistrationPage() {
         "" // no force regenerate for others
       );
       fetchData(); // Refresh to see the new task status
-      // We don't close the modal, so user can see it's in-progress
       const updatedItem = await crmService.getSalesRegistrations().then(list => list.find(r => r.salesRegistrationId === editingItem.salesRegistrationId));
       if (updatedItem) setEditingItem(updatedItem);
     } catch (err) {
@@ -235,34 +241,52 @@ export function SalesRegistrationPage() {
         generatedIds: generatedIds
     });
 
-    setIsViewMode(true);
-    setIsEditMode(false);
+    setMode('view');
+    setEntrySource(item.importId ? 'crm' : 'manual');
     setIsModalOpen(true);
   };
 
-  const handleCancelEdit = () => {
-    if (checkIsBaseDataChanged()) {
-      if (!window.confirm("변경 내용을 버리고 상세 보기로 돌아가시겠습니까?")) return;
+  const handleCancelAction = () => {
+    if (mode === 'edit' || (mode === 'new' && checkIsDataChangedForNew())) {
+      if (!window.confirm("변경 내용을 버리고 돌아가시겠습니까?")) return;
     }
     
-    // Restore from snapshot
-    if (snapshot) {
+    if (mode === 'edit' && snapshot) {
       setFormData(snapshot.formData);
       setKeepPhotoIds(snapshot.keepPhotoIds);
       setExistingDescriptions(snapshot.existingDescriptions);
       setSelectedChannels(snapshot.generatedIds);
+      setMode('view');
+    } else {
+      setIsModalOpen(false);
+      resetForm();
     }
-    
-    setIsViewMode(true);
-    setIsEditMode(false);
+  };
+
+  const handleCloseModal = () => {
+    if (mode === 'new' || mode === 'edit') {
+        const isChanged = mode === 'edit' ? checkIsBaseDataChanged() : checkIsDataChangedForNew();
+        if (isChanged) {
+            if (!window.confirm("변경 사항이 저장되지 않았습니다. 정말 닫으시겠습니까?")) return;
+        }
+    }
+    setIsModalOpen(false);
+    resetForm();
   };
 
   const enterEditMode = () => {
-    setIsViewMode(false);
-    setIsEditMode(true);
+    setMode('edit');
     if (snapshot) {
       setSelectedChannels(snapshot.generatedIds);
     }
+  };
+
+  const checkIsDataChangedForNew = () => {
+    // Check if any significant fields are filled/changed in new mode
+    const hasNote = formData.note && formData.note.trim() !== "";
+    const hasPhotos = newFiles.length > 0;
+    const hasChannels = selectedChannels.length > 0;
+    return hasNote || hasPhotos || hasChannels;
   };
 
   const checkIsBaseDataChanged = () => {
@@ -462,6 +486,7 @@ export function SalesRegistrationPage() {
           isLoading={isLoading}
           onRowClick={handleOpenEdit}
           emptyMessage="차량 판매 이력이 없습니다."
+          onAddClick={handleOpenCrmModal}
         />
 
         {/* CRM Search Modal */}
@@ -471,11 +496,11 @@ export function SalesRegistrationPage() {
           onSelect={handleCrmSelect} 
         />
 
-        <ModalLayout isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} maxWidthClass="max-w-3xl">
+        <ModalLayout isOpen={isModalOpen} onClose={handleCloseModal} maxWidthClass="max-w-3xl">
           <div className="flex flex-col h-[85vh] bg-white rounded-3xl overflow-hidden relative">
             {/* X Close Button */}
             <button 
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseModal}
               className="absolute top-4 right-6 z-30 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
             >
               <Plus className="w-6 h-6 rotate-45" />
@@ -484,13 +509,13 @@ export function SalesRegistrationPage() {
             {/* Header */}
             <div className="shrink-0 px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white z-20">
               <h2 className="text-xl font-bold text-slate-800">
-                {isViewMode ? '판매 내역 상세' : '내용 수정 및 재생성'}
+                {mode === 'new' ? '판매 내역 신규 등록' : mode === 'view' ? '판매 내역 상세' : '내용 수정 및 재생성'}
               </h2>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-6">
               {/* Warning Banner for Edit Mode */}
-              {isEditMode && (
+              {mode === 'edit' && (
                 <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl flex gap-3 items-start">
                   <Edit3 className="w-5 h-5 text-amber-500 mt-0.5" />
                   <div>
@@ -500,39 +525,65 @@ export function SalesRegistrationPage() {
                 </div>
               )}
 
-              {/* View/Edit Form Section */}
+              {/* Form Section */}
               <div className="space-y-6">
-                  {/* Basic Info Section - Always Read-only for CRM Data */}
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Database className="w-5 h-5 text-[#3721ED]" />
                         <h3 className="text-lg font-bold text-slate-800">기본 등록 정보</h3>
                       </div>
-                      {isEditMode && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md">CRM 원본 데이터는 수정할 수 없습니다</span>}
+                      {entrySource === 'crm' && (mode === 'new' || mode === 'edit') && (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md">CRM 원본 데이터는 수정할 수 없습니다</span>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-4">
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">고객명</p><p className="text-sm font-semibold text-slate-700">{formData.customer_name}</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">차량 모델</p><p className="text-sm font-semibold text-slate-700">{formData.vehicle_model} {formData.class_name}</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">연식</p><p className="text-sm font-semibold text-slate-700">{formData.car_year || '-'}</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">외장 색상</p><p className="text-sm font-semibold text-slate-700">{formData.exterior_color || '-'}</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">내장 색상</p><p className="text-sm font-semibold text-slate-700">{formData.interior_color || '-'}</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">판매 지점</p><p className="text-sm font-semibold text-slate-700">{formData.branch_name}</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">판매 금액</p><p className="text-sm font-semibold text-slate-700">{Number(formData.sale_price).toLocaleString()}원</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">인보이스가</p><p className="text-sm font-semibold text-slate-700">{Number(formData.invoice_price).toLocaleString()}원</p></div>
-                      <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">출고일</p><p className="text-sm font-semibold text-slate-700">{formData.sale_date?.substring(0,10) || '-'}</p></div>
-                      <div className="col-span-1 md:col-span-3 h-px bg-slate-50 my-2" />
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                        {[
+                            { label: '고객명', key: 'customer_name', type: 'text', required: true },
+                            { label: '연락처', key: 'customer_phone', type: 'text' },
+                            { label: '차량 모델', key: 'vehicle_model', type: 'text', required: true },
+                            { label: '클래스', key: 'class_name', type: 'text' },
+                            { label: '연식', key: 'car_year', type: 'text' },
+                            { label: '외장 색상', key: 'exterior_color', type: 'text' },
+                            { label: '내장 색상', key: 'interior_color', type: 'text' },
+                            { label: '판매 금액', key: 'sale_price', type: 'number' },
+                            { label: '인보이스가', key: 'invoice_price', type: 'number' },
+                            { label: '출고일', key: 'sale_date', type: 'datetime-local' },
+                            { label: '계약일', key: 'contract_date', type: 'datetime-local' },
+                            { label: '판매 지점', key: 'branch_name', type: 'text' },
+                        ].map(field => {
+                            const isReadOnly = mode === 'view' || (entrySource === 'crm' && (mode === 'new' || mode === 'edit'));
+                            
+                            return (
+                                <div key={field.key} className={field.type === 'datetime-local' ? 'col-span-1' : ''}>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">
+                                        {field.label} {field.required && <span className="text-rose-500">*</span>}
+                                    </p>
+                                    {isReadOnly ? (
+                                        <p className="text-sm font-semibold text-slate-700 py-1.5 border-b border-transparent">
+                                            {field.key.includes('price') ? Number(formData[field.key]).toLocaleString() + '원' : formData[field.key] || '-'}
+                                        </p>
+                                    ) : (
+                                        <input 
+                                            type={field.type} 
+                                            value={formData[field.key]} 
+                                            onChange={e => setFormData({...formData, [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value})}
+                                            className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:border-[#3721ED] focus:ring-1 focus:ring-[#3721ED]/10 outline-none transition-all"
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                     
-                    {/* Editable Supplement Data */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 pt-4 border-t border-slate-50">
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">특이사항 (노트)</label>
-                            {isEditMode ? (
-                                <textarea value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} rows={3} placeholder="메모를 입력하세요." className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white resize-none focus:border-[#3721ED] focus:ring-1 focus:ring-[#3721ED]/10 transition-all" />
-                            ) : (
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">특이사항 (노트)</label>
+                            {mode === 'view' ? (
                                 <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl min-h-[60px] whitespace-pre-wrap">{formData.note || '등록된 메모가 없습니다.'}</p>
+                            ) : (
+                                <textarea value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} rows={3} placeholder="메모를 입력하세요." className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-sm bg-white resize-none focus:border-[#3721ED] focus:ring-1 focus:ring-[#3721ED]/10 transition-all outline-none" />
                             )}
                         </div>
                     </div>
@@ -540,11 +591,23 @@ export function SalesRegistrationPage() {
 
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                     <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Plus className="w-4 h-4 text-slate-400" /> 사진 및 설명 ({editingItem?.photos.length || 0})
+                        <Plus className="w-4 h-4 text-slate-400" /> 사진 및 설명 ({mode === 'new' ? newFiles.length : (editingItem?.photos.length || 0)})
                     </h3>
-                    {isEditMode ? (
+                    {mode === 'view' ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            {editingItem?.photos.map((p, idx) => (
+                                <div key={p.photoId} className="group relative aspect-video rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
+                                    <img src={p.fileUrl} className="w-full h-full object-cover" alt="Customer Car" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                                        <p className="text-[10px] text-white font-medium line-clamp-2">{p.photoDescription || '설명 없음'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {editingItem?.photos.length === 0 && <p className="col-span-full py-8 text-center text-sm text-slate-400">등록된 사진이 없습니다.</p>}
+                        </div>
+                    ) : (
                         <PhotoUploader 
-                            existingPhotos={editingItem?.photos || EMPTY_PHOTOS}
+                            existingPhotos={mode === 'new' ? EMPTY_PHOTOS : (editingItem?.photos || EMPTY_PHOTOS)}
                             onKeepPhotosChange={setKeepPhotoIds}
                             newFiles={newFiles}
                             onNewFilesChange={setNewFiles}
@@ -562,48 +625,69 @@ export function SalesRegistrationPage() {
                                 setNewDescriptions(updated);
                             }}
                         />
-                    ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                            {editingItem?.photos.map((p, idx) => (
-                                <div key={p.photoId} className="group relative aspect-video rounded-xl overflow-hidden border border-slate-100 bg-slate-50">
-                                    <img src={p.fileUrl} className="w-full h-full object-cover" alt="Customer Car" />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                                        <p className="text-[10px] text-white font-medium line-clamp-2">{p.photoDescription || '설명 없음'}</p>
-                                    </div>
-                                </div>
-                            ))}
-                            {editingItem?.photos.length === 0 && <p className="col-span-full py-8 text-center text-sm text-slate-400">등록된 사진이 없습니다.</p>}
-                        </div>
                     )}
                   </div>
               </div>
 
-              {/* Generated Posts Section */}
+              {/* Channels Action Section */}
               <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-4">
-                    {isEditMode ? '재생성될 게시물' : '생성한 게시물'}
+                    {mode === 'new' ? '생성할 게시물 선택' : mode === 'edit' ? '재생성될 게시물' : '생성한 게시물'}
                   </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {CONTENT_CHANNELS.map(ch => {
                       const task = editingItem?.createdTasks?.find(t => t.contentFormat.toLowerCase() === ch.format);
                       const Icon = ch.icon;
+                      const isSelected = selectedChannels.includes(ch.id);
                       
                       const isCompleted = task?.status === 'completed';
                       const isProcessing = task?.status === 'pending' || task?.status === 'in_progress';
                       const isFailed = task?.status === 'failed';
                       const isNotCreated = !task;
 
+                      // For 'new' mode, we show selectable cards
+                      if (mode === 'new') {
+                          return (
+                              <div 
+                                key={ch.id}
+                                onClick={() => toggleChannel(ch.id)}
+                                className={`flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer ${
+                                    isSelected ? 'bg-white border-[#3721ED] shadow-md ring-2 ring-[#3721ED]/10' : 'bg-slate-50 border-slate-100 hover:border-slate-200'
+                                }`}
+                              >
+                                {isSelected ? <CheckSquare className="w-5 h-5 text-[#3721ED]" /> : <Square className="w-5 h-5 text-slate-400" />}
+                                <Icon className="w-5 h-5" />
+                                <span className={`text-sm font-bold ${isSelected ? 'text-[#3721ED]' : 'text-slate-600'}`}>{ch.label}</span>
+                              </div>
+                          );
+                      }
+
+                      // For 'edit' mode, we show status and lock ones that exist
+                      if (mode === 'edit') {
+                        const isRegenerate = !isNotCreated;
+                        return (
+                            <div key={ch.id} className={`flex items-center gap-3 p-4 rounded-2xl border ${isRegenerate ? 'bg-blue-50/50 border-blue-200 ring-1 ring-blue-100' : 'bg-slate-50/50 border-slate-100 opacity-60'}`}>
+                                <Icon className="w-5 h-5" />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-slate-700">{ch.label}</span>
+                                    {isRegenerate && <p className="text-[10px] text-blue-500 font-bold">변경 시 자동 재생성</p>}
+                                    {isNotCreated && <p className="text-[10px] text-slate-400">등록 후 개별 제작 가능</p>}
+                                </div>
+                            </div>
+                        );
+                      }
+
+                      // For 'view' mode, we show status with actions
                       return (
                         <div 
                           key={ch.id} 
                           className={`flex flex-col p-4 rounded-2xl border transition-all ${
-                            isEditMode ? (isNotCreated ? 'bg-slate-50 opacity-40 border-slate-100' : 'bg-blue-50/30 border-blue-100 ring-1 ring-blue-100') :
-                            isCompleted ? 'bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50/50' : 
+                            isCompleted ? 'bg-emerald-50/30 border-emerald-100' : 
                             isProcessing ? 'bg-amber-50/30 border-amber-100 animate-pulse' :
-                            isFailed ? 'bg-rose-50/30 border-rose-100 hover:bg-rose-50/50' :
-                            'bg-slate-50 border-slate-100 hover:bg-slate-100/50'
+                            isFailed ? 'bg-rose-50/30 border-rose-100' :
+                            'bg-slate-50 border-slate-100'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-3">
@@ -622,41 +706,38 @@ export function SalesRegistrationPage() {
                           
                           <div className="flex-1">
                             <span className="text-sm font-bold text-slate-700 block mb-1">{ch.label}</span>
-                            {isEditMode && !isNotCreated && <p className="text-[10px] text-blue-500 font-bold">내용 수정 시 자동 재생성</p>}
                           </div>
 
                           <div className="mt-4">
-                            {!isEditMode && (
-                                <>
-                                    {isCompleted && (
-                                        <button 
-                                            type="button"
-                                            onClick={(e) => handleNavigateToResult(e, task.taskId, task.articleId || undefined)}
-                                            className="w-full py-2 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-1.5"
-                                        >
-                                            <Search className="w-3.5 h-3.5" /> 결과 보기
-                                        </button>
-                                    )}
-                                    {isNotCreated && (
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleCreateSinglePost(ch.format)}
-                                            disabled={isSubmitting}
-                                            className="w-full py-2 bg-[#3721ED] hover:bg-[#2c1ac0] text-white text-xs font-bold rounded-xl shadow-sm transition-all disabled:opacity-50"
-                                        >
-                                            만들기
-                                        </button>
-                                    )}
-                                    {isFailed && (
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleCreateSinglePost(ch.format)}
-                                            className="w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-xl border border-rose-100 transition-all"
-                                        >
-                                            재생성 요청
-                                        </button>
-                                    )}
-                                </>
+                            {isCompleted && (
+                                <button 
+                                    type="button"
+                                    onClick={(e) => handleNavigateToResult(e, task.taskId, task.articleId || undefined)}
+                                    className="w-full py-2 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-1.5"
+                                >
+                                    <Search className="w-3.5 h-3.5" /> 결과 보기
+                                </button>
+                            )}
+                            {isNotCreated && (
+                                <div className="flex flex-col gap-2">
+                                    <button 
+                                        type="button"
+                                        onClick={() => handleCreateSinglePost(ch.format)}
+                                        disabled={isSubmitting}
+                                        className="w-full py-2 bg-[#3721ED] hover:bg-[#2c1ac0] text-white text-[10px] font-bold rounded-xl shadow-sm transition-all disabled:opacity-50"
+                                    >
+                                        만들기
+                                    </button>
+                                </div>
+                            )}
+                            {isFailed && (
+                                <button 
+                                    type="button"
+                                    onClick={() => handleCreateSinglePost(ch.format)}
+                                    className="w-full py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-bold rounded-xl border border-rose-100 transition-all font-bold"
+                                >
+                                    재생성 요청
+                                </button>
                             )}
                           </div>
                         </div>
@@ -669,27 +750,35 @@ export function SalesRegistrationPage() {
             
             <div className="shrink-0 p-4 border-t border-slate-200 bg-white flex items-center justify-between">
               <div>
-                {isViewMode && editingItem && (
+                {mode === 'view' && (
                   <button type="button" onClick={handleDelete} disabled={isSubmitting} className="px-5 py-2.5 text-sm font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors">
                     삭제
                   </button>
                 )}
               </div>
               <div className="flex gap-2">
-                {isViewMode ? (
+                {mode === 'new' ? (
                   <>
-                    <button type="button" onClick={enterEditMode} className="px-6 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm flex items-center gap-2">
-                        내용 수정 후 재생성
+                    <button type="button" onClick={handleCloseModal} disabled={isSubmitting} className="px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">취소</button>
+                    <button 
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || selectedChannels.length === 0} 
+                        className="px-8 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm disabled:opacity-50"
+                    >
+                        {isSubmitting ? '진행 중...' : '등록 및 생성'}
                     </button>
                   </>
+                ) : mode === 'view' ? (
+                  <button onClick={enterEditMode} className="px-8 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm">
+                    내용 수정 후 재생성
+                  </button>
                 ) : (
                   <>
-                    <button type="button" onClick={handleCancelEdit} disabled={isSubmitting} className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">취소</button>
+                    <button type="button" onClick={handleCancelAction} disabled={isSubmitting} className="px-6 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">취소</button>
                     <button 
-                        type="submit" 
-                        form="salesForm" 
+                        onClick={handleSubmit}
                         disabled={isSubmitting || !checkIsBaseDataChanged()} 
-                        className="px-6 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-8 py-2.5 text-sm font-bold text-white bg-[#3721ED] hover:bg-[#2c1ac0] rounded-xl transition-colors shadow-sm disabled:opacity-50"
                     >
                         {isSubmitting ? '저장 중...' : '재생성 및 반영'}
                     </button>

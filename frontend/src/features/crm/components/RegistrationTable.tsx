@@ -13,6 +13,7 @@ interface RegistrationTableProps<T> {
   onRowClick?: (item: T) => void;
   isLoading: boolean;
   emptyMessage?: string;
+  onAddClick?: () => void;
 }
 
 export function RegistrationTable<T extends { [key: string]: any }>({
@@ -20,7 +21,8 @@ export function RegistrationTable<T extends { [key: string]: any }>({
   columns,
   onRowClick,
   isLoading,
-  emptyMessage = "등록된 데이터가 없습니다."
+  emptyMessage = "등록된 데이터가 없습니다.",
+  onAddClick
 }: RegistrationTableProps<T>) {
 
   if (isLoading) {
@@ -34,8 +36,16 @@ export function RegistrationTable<T extends { [key: string]: any }>({
 
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-slate-100 shadow-sm space-y-4">
         <p className="text-slate-500 font-medium">{emptyMessage}</p>
+        {onAddClick && (
+          <button 
+            onClick={onAddClick}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold transition-all"
+          >
+            데이터 불러오기
+          </button>
+        )}
       </div>
     );
   }

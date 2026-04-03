@@ -26,6 +26,7 @@ export interface SalesRegistration {
     status: string;
     articleId?: string;
   }[];
+  importId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,6 +77,7 @@ export interface ServiceRegistration {
     status: string;
     articleId?: string;
   }[];
+  importId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -102,6 +104,7 @@ export interface GroomingRegistration {
     status: string;
     articleId?: string;
   }[];
+  importId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -163,7 +166,7 @@ export const crmService = {
   // Sales
   getSalesRegistrations: async (): Promise<SalesRegistration[]> => {
     const res = await apiClient.get('/api/crm/sales-registrations');
-    return Array.isArray(res) ? res : res.items || [];
+    return Array.isArray(res) ? res : (res as any).items || [];
   },
   createSalesRegistration: async (data: Record<string, any>, files: File[], desc?: string[], reqContents?: any[], forceRegenerateFormats?: string): Promise<SalesRegistration> => {
     return apiClient.post('/api/crm/sales-registrations', createCrmFormData(data, files, desc, undefined, undefined, reqContents, forceRegenerateFormats));
@@ -179,7 +182,7 @@ export const crmService = {
     const res = await apiClient.get(`/api/crm/external/sales-deliveries`, { 
       params: { user_id: userId, delivery_date_from: fromDate, delivery_date_to: toDate } 
     });
-    return Array.isArray(res) ? res : res.items || [];
+    return Array.isArray(res) ? res : (res as any).items || [];
   },
   importExternalSalesRegistration: async (userId: string, deliveryPayload: ExternalSalesDelivery, note: string, files: File[], desc: string[], reqContents?: any[], forceRegenerateFormats?: string) => {
     const formData = new FormData();
@@ -201,7 +204,7 @@ export const crmService = {
   // Service
   getServiceRegistrations: async (): Promise<ServiceRegistration[]> => {
     const res = await apiClient.get('/api/crm/service-registrations');
-    return Array.isArray(res) ? res : res.items || [];
+    return Array.isArray(res) ? res : (res as any).items || [];
   },
   createServiceRegistration: async (data: Record<string, any>, files: File[], desc?: string[], reqContents?: any[]): Promise<ServiceRegistration> => {
     return apiClient.post('/api/crm/service-registrations', createCrmFormData(data, files, desc, undefined, undefined, reqContents));
@@ -216,7 +219,7 @@ export const crmService = {
   // Grooming
   getGroomingRegistrations: async (): Promise<GroomingRegistration[]> => {
     const res = await apiClient.get('/api/crm/grooming-registrations');
-    return Array.isArray(res) ? res : res.items || [];
+    return Array.isArray(res) ? res : (res as any).items || [];
   },
   createGroomingRegistration: async (data: Record<string, any>, files: File[], desc?: string[], reqContents?: any[]): Promise<GroomingRegistration> => {
     return apiClient.post('/api/crm/grooming-registrations', createCrmFormData(data, files, desc, undefined, undefined, reqContents));
